@@ -229,6 +229,131 @@ impl EditorState {
         }
     }
 
+    pub fn move_word_forward(&mut self) {
+        let head = self.selection.head;
+        if let Some(line) = self.buffer.line(head.line) {
+            let after = &line[head.col..];
+            if let Some(pos) = after.find(' ') {
+                let new_col = head.col + pos + 1;
+                self.selection = Selection::cursor(Position::new(head.line, new_col));
+            } else {
+                let len = self.buffer.line_len(head.line).unwrap_or(0);
+                self.selection = Selection::cursor(Position::new(head.line, len));
+            }
+        }
+    }
+
+    pub fn move_word_backward(&mut self) {
+        let head = self.selection.head;
+        if let Some(line) = self.buffer.line(head.line) {
+            let before = &line[..head.col];
+            if let Some(pos) = before.rfind(' ') {
+                let new_col = pos;
+                self.selection = Selection::cursor(Position::new(head.line, new_col));
+            } else {
+                self.selection = Selection::cursor(Position::new(head.line, 0));
+            }
+        }
+    }
+
+    pub fn page_up(&mut self, rows: usize) {
+        let head = self.selection.head;
+        let new_line = head.line.saturating_sub(rows);
+        let new_len = self.buffer.line_len(new_line).unwrap_or(0);
+        let new_col = head.col.min(new_len);
+        self.selection = Selection::cursor(Position::new(new_line, new_col));
+    }
+
+    pub fn page_down(&mut self, rows: usize) {
+        let head = self.selection.head;
+        let max_line = self.buffer.line_count().saturating_sub(1);
+        let new_line = (head.line + rows).min(max_line);
+        let new_len = self.buffer.line_len(new_line).unwrap_or(0);
+        let new_col = head.col.min(new_len);
+        self.selection = Selection::cursor(Position::new(new_line, new_col));
+    }
+
+    pub fn visual_mode(&mut self) {
+        let head = self.selection.head;
+        self.selection = Selection::new(head, head);
+    }
+
+    pub fn select_line(&mut self) {
+        let line = self.selection.head.line;
+        let anchor = Position::new(line, 0);
+        let next_line = line + 1;
+        let head = if next_line < self.buffer.line_count() {
+            Position::new(next_line, 0)
+        } else {
+            let len = self.buffer.line_len(line).unwrap_or(0);
+            Position::new(line, len)
+        };
+        self.selection = Selection::new(anchor, head);
+    }
+
+    pub fn extend_selection_left(&mut self) {
+        let head = self.selection.head;
+        if head.col > 0 {
+            self.selection.head = Position::new(head.line, head.col - 1);
+        } else if head.line > 0 {
+            let prev_line = head.line - 1;
+            let prev_len = self.buffer.line_len(prev_line).unwrap_or(0);
+            self.selection.head = Position::new(prev_line, prev_len);
+        }
+    }
+
+    pub fn extend_selection_right(&mut self) {
+        let head = self.selection.head;
+        let line_len = self.buffer.line_len(head.line).unwrap_or(0);
+        if head.col < line_len {
+            self.selection.head = Position::new(head.line, head.col + 1);
+        } else if head.line + 1 < self.buffer.line_count() {
+            self.selection.head = Position::new(head.line + 1, 0);
+        }
+    }
+
+    pub fn extend_selection_up(&mut self) {
+        let head = self.selection.head;
+        if head.line > 0 {
+            let new_line = head.line - 1;
+            let new_len = self.buffer.line_len(new_line).unwrap_or(0);
+            let new_col = head.col.min(new_len);
+            self.selection.head = Position::new(new_line, new_col);
+        }
+    }
+
+    pub fn extend_selection_down(&mut self) {
+        let head = self.selection.head;
+        if head.line + 1 < self.buffer.line_count() {
+            let new_line = head.line + 1;
+            let new_len = self.buffer.line_len(new_line).unwrap_or(0);
+            let new_col = head.col.min(new_len);
+            self.selection.head = Position::new(new_line, new_col);
+        }
+    }
+
+    pub fn collapse_selection(&mut self) {
+        self.selection = Selection::cursor(self.selection.head);
+    }
+
+    pub fn open_line_below(&mut self) {
+        let line = self.selection.head.line;
+        let pos = Position::new(line + 1, 0);
+        self.buffer.insert(pos, "\n");
+        self.selection = Selection::cursor(pos);
+        self.dirty = true;
+        self.mode = EditorMode::Insert;
+    }
+
+    pub fn open_line_above(&mut self) {
+        let line = self.selection.head.line;
+        let pos = Position::new(line, 0);
+        self.buffer.insert(pos, "\n");
+        self.selection = Selection::cursor(pos);
+        self.dirty = true;
+        self.mode = EditorMode::Insert;
+    }
+
     pub fn search_forward(&mut self, query: &str) -> bool {
         if query.is_empty() {
             return false;
@@ -682,5 +807,113 @@ mod tests {
         let found = state.search_backward("hello");
         assert!(found);
         assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_visual_mode() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::cursor(Position::new(0, 6));
+        state.visual_mode();
+        assert_eq!(state.selection.anchor, Position::new(0, 6));
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_select_line() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line1\nline2\nline3");
+        state.selection = Selection::cursor(Position::new(1, 3));
+        state.select_line();
+        assert_eq!(state.selection.anchor, Position::new(1, 0));
+        assert_eq!(state.selection.head, Position::new(2, 0));
+    }
+
+    #[test]
+    fn test_extend_selection_right() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::new(Position::new(0, 1), Position::new(0, 1));
+        state.extend_selection_right();
+        assert_eq!(state.selection.anchor, Position::new(0, 1));
+        assert_eq!(state.selection.head, Position::new(0, 2));
+    }
+
+    #[test]
+    fn test_extend_selection_down() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.selection = Selection::new(Position::new(0, 2), Position::new(0, 2));
+        state.extend_selection_down();
+        assert_eq!(state.selection.anchor, Position::new(0, 2));
+        assert_eq!(state.selection.head, Position::new(1, 2));
+    }
+
+    #[test]
+    fn test_collapse_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
+        state.collapse_selection();
+        assert!(state.selection.is_empty());
+        assert_eq!(state.selection.head, Position::new(0, 5));
+    }
+
+    #[test]
+    fn test_move_word_forward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_backward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::cursor(Position::new(0, 11));
+        state.move_word_backward();
+        assert_eq!(state.selection.head, Position::new(0, 5));
+    }
+
+    #[test]
+    fn test_open_line_below() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.selection = Selection::cursor(Position::new(0, 3));
+        state.open_line_below();
+        assert_eq!(state.buffer.to_string(), "hello\n\nworld");
+        assert_eq!(state.selection.head, Position::new(1, 0));
+        assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_open_line_above() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.selection = Selection::cursor(Position::new(1, 3));
+        state.open_line_above();
+        assert_eq!(state.buffer.to_string(), "hello\n\nworld");
+        assert_eq!(state.selection.head, Position::new(1, 0));
+        assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_page_up() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.selection = Selection::cursor(Position::new(3, 0));
+        state.page_up(2);
+        assert_eq!(state.selection.head, Position::new(1, 0));
+    }
+
+    #[test]
+    fn test_page_down() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.selection = Selection::cursor(Position::new(1, 0));
+        state.page_down(2);
+        assert_eq!(state.selection.head, Position::new(3, 0));
     }
 }
