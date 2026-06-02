@@ -6,18 +6,22 @@ use crate::input::{InputEvent, KeyCode};
 pub struct Keymap {
     /// Stack of pending prefix keys. Empty means idle.
     prefix_stack: Vec<InputEvent>,
+    /// Pending single-key for double-tap sequences (e.g. qq, gg).
+    pending_key: Option<char>,
 }
 
 impl Keymap {
     pub fn new() -> Self {
         Self {
             prefix_stack: Vec::new(),
+            pending_key: None,
         }
     }
 
     /// Clears any pending prefix state (e.g. on mode switch or cancel).
     pub fn clear_prefix(&mut self) {
         self.prefix_stack.clear();
+        self.pending_key = None;
     }
 
     /// Maps an input event to a command based on the current editor mode.
@@ -132,34 +136,79 @@ impl Keymap {
                 code: KeyCode::End,
                 ..
             } => Some(Command::MoveLineEnd),
-            InputEvent::Text(text) => match text.as_str() {
-                // Colemak-DH: m/n/e/i = h/j/k/l
-                "m" => Some(Command::MoveLeft),
-                "n" => Some(Command::MoveDown),
-                "e" => Some(Command::MoveUp),
-                "i" => Some(Command::MoveRight),
-                // Colemak-DH: s = insert (since i is right)
-                "s" => Some(Command::EnterInsertMode),
-                // Command mode: ; (Colemak-DH optimized)
-                ";" => Some(Command::EnterCommandMode),
-                "/" => Some(Command::EnterSearchMode),
-                // Colemak-DH: x = delete, c = yank, v = paste
-                "x" => Some(Command::DeleteSelection),
-                "c" => Some(Command::YankSelection),
-                "v" => Some(Command::PasteAfter),
-                "V" => Some(Command::PasteBefore),
-                // Colemak-DH: z = undo, Z = redo
-                "z" => Some(Command::Undo),
-                "Z" => Some(Command::Redo),
-                // Colemak-DH: w = change
-                "w" => Some(Command::ChangeSelection),
-                _ => None,
-            },
+            InputEvent::Text(text) => {
+                let ch = text.chars().next()?;
+
+                // Handle double-tap and multi-char sequences
+                match ch {
+                    'q' | 'g' => {
+                        if let Some(pending) = self.pending_key {
+                            if pending == ch {
+                                // Double-tap detected
+                                self.pending_key = None;
+                                return match ch {
+                                    'q' => Some(Command::Quit),
+                                    'g' => Some(Command::MoveFileStart),
+                                    _ => None,
+                                };
+                            }
+                        }
+                        // Set as pending and consume
+                        self.pending_key = Some(ch);
+                        None
+                    }
+                    _ => {
+                        // Any other key cancels pending state
+                        self.pending_key = None;
+                        self.handle_text_normal(text)
+                    }
+                }
+            }
             InputEvent::Key {
                 code: KeyCode::Char('r'),
                 modifiers,
             } if modifiers.ctrl => Some(Command::Redo),
             InputEvent::Paste(_data) => Some(Command::PasteAfter),
+            _ => {
+                self.pending_key = None;
+                None
+            }
+        }
+    }
+
+    fn handle_text_normal(&mut self, text: &str) -> Option<Command> {
+        match text {
+            // Colemak-DH: m/n/e/i = h/j/k/l
+            "m" => Some(Command::MoveLeft),
+            "n" => Some(Command::MoveDown),
+            "e" => Some(Command::MoveUp),
+            "i" => Some(Command::MoveRight),
+            // Page scroll
+            "j" => Some(Command::PageUp),
+            "k" => Some(Command::PageDown),
+            // Word movement
+            "l" => Some(Command::MoveWordBackward),
+            "u" => Some(Command::MoveWordForward),
+            // Colemak-DH: s = insert (since i is right)
+            "s" => Some(Command::EnterInsertMode),
+            // Command mode
+            ";" => Some(Command::EnterCommandMode),
+            "/" => Some(Command::EnterSearchMode),
+            // Selection
+            "a" => Some(Command::VisualMode),
+            "x" => Some(Command::SelectLine),
+            // Editing
+            "d" => Some(Command::DeleteSelection),
+            "c" => Some(Command::YankSelection),
+            "v" => Some(Command::PasteAfter),
+            "V" => Some(Command::PasteBefore),
+            // Undo/redo
+            "z" => Some(Command::Undo),
+            "Z" => Some(Command::Redo),
+            // File end
+            "G" => Some(Command::MoveFileEnd),
+            // Change (reserved for now, same as before)
+            "w" => Some(Command::ChangeSelection),
             _ => None,
         }
     }
@@ -283,16 +332,6 @@ mod tests {
         let mut keymap = Keymap::new();
         let ev = InputEvent::Text("Z".to_string());
         assert_eq!(keymap.handle(&ev, EditorMode::Normal), Some(Command::Redo));
-    }
-
-    #[test]
-    fn test_normal_delete() {
-        let mut keymap = Keymap::new();
-        let ev = InputEvent::Text("x".to_string());
-        assert_eq!(
-            keymap.handle(&ev, EditorMode::Normal),
-            Some(Command::DeleteSelection)
-        );
     }
 
     #[test]
@@ -496,5 +535,101 @@ mod tests {
         assert_eq!(keymap.handle(&cx, EditorMode::Insert), None);
         // Stack should remain empty
         assert!(keymap.prefix_stack.is_empty());
+    }
+
+    #[test]
+    fn test_normal_visual_mode() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("a".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::VisualMode)
+        );
+    }
+
+    #[test]
+    fn test_normal_select_line() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("x".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::SelectLine)
+        );
+    }
+
+    #[test]
+    fn test_normal_page_up() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("j".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::PageUp)
+        );
+    }
+
+    #[test]
+    fn test_normal_page_down() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("k".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::PageDown)
+        );
+    }
+
+    #[test]
+    fn test_normal_word_forward() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("u".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::MoveWordForward)
+        );
+    }
+
+    #[test]
+    fn test_normal_word_backward() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("l".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::MoveWordBackward)
+        );
+    }
+
+    #[test]
+    fn test_normal_file_start() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("g".to_string());
+        // First 'g' is consumed as pending
+        assert_eq!(keymap.handle(&ev, EditorMode::Normal), None);
+        // Second 'g' executes MoveFileStart
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::MoveFileStart)
+        );
+    }
+
+    #[test]
+    fn test_normal_file_end() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("G".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::MoveFileEnd)
+        );
+    }
+
+    #[test]
+    fn test_normal_quit_double_tap() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("q".to_string());
+        // First 'q' is consumed as pending
+        assert_eq!(keymap.handle(&ev, EditorMode::Normal), None);
+        // Second 'q' executes quit
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::Quit)
+        );
     }
 }
