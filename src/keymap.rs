@@ -26,17 +26,32 @@ impl Keymap {
             InputEvent::Key { code: KeyCode::Home, .. } => Some(Command::MoveLineStart),
             InputEvent::Key { code: KeyCode::End, .. } => Some(Command::MoveLineEnd),
             InputEvent::Text(text) => match text.as_str() {
-                "i" => Some(Command::EnterInsertMode),
-                ":" => Some(Command::EnterCommandMode),
+                // Colemak-DH: m/n/e/i = h/j/k/l
+                "m" => Some(Command::MoveLeft),
+                "n" => Some(Command::MoveDown),
+                "e" => Some(Command::MoveUp),
+                "i" => Some(Command::MoveRight),
+                // Colemak-DH: s = insert (since i is right)
+                "s" => Some(Command::EnterInsertMode),
+                // Command mode: ; (Colemak-DH optimized)
+                ";" => Some(Command::EnterCommandMode),
                 "/" => Some(Command::EnterSearchMode),
+                // Colemak-DH: x = delete, c = yank, v = paste
                 "x" => Some(Command::DeleteSelection),
-                "u" => Some(Command::Undo),
+                "c" => Some(Command::YankSelection),
+                "v" => Some(Command::PasteAfter),
+                "V" => Some(Command::PasteBefore),
+                // Colemak-DH: z = undo, Z = redo
+                "z" => Some(Command::Undo),
+                "Z" => Some(Command::Redo),
+                // Colemak-DH: w = change
+                "w" => Some(Command::ChangeSelection),
                 _ => None,
             },
             InputEvent::Key { code: KeyCode::Char('r'), modifiers } if modifiers.ctrl => {
                 Some(Command::Redo)
             }
-            InputEvent::Paste(data) => Some(Command::PasteAfter), // Paste in normal mode
+            InputEvent::Paste(data) => Some(Command::PasteAfter),
             _ => None,
         }
     }
@@ -82,29 +97,34 @@ mod tests {
     }
 
     #[test]
+    fn test_normal_colemak_movement() {
+        assert_eq!(Keymap::handle(&InputEvent::Text("m".to_string()), EditorMode::Normal), Some(Command::MoveLeft));
+        assert_eq!(Keymap::handle(&InputEvent::Text("n".to_string()), EditorMode::Normal), Some(Command::MoveDown));
+        assert_eq!(Keymap::handle(&InputEvent::Text("e".to_string()), EditorMode::Normal), Some(Command::MoveUp));
+        assert_eq!(Keymap::handle(&InputEvent::Text("i".to_string()), EditorMode::Normal), Some(Command::MoveRight));
+    }
+
+    #[test]
     fn test_normal_enter_insert() {
-        let ev = InputEvent::Text("i".to_string());
+        let ev = InputEvent::Text("s".to_string());
         assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::EnterInsertMode));
     }
 
     #[test]
     fn test_normal_enter_command() {
-        let ev = InputEvent::Text(":".to_string());
+        let ev = InputEvent::Text(";".to_string());
         assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::EnterCommandMode));
     }
 
     #[test]
     fn test_normal_undo() {
-        let ev = InputEvent::Text("u".to_string());
+        let ev = InputEvent::Text("z".to_string());
         assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::Undo));
     }
 
     #[test]
     fn test_normal_redo() {
-        let ev = InputEvent::Key {
-            code: KeyCode::Char('r'),
-            modifiers: Modifiers::ctrl(),
-        };
+        let ev = InputEvent::Text("Z".to_string());
         assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::Redo));
     }
 
@@ -112,6 +132,30 @@ mod tests {
     fn test_normal_delete() {
         let ev = InputEvent::Text("x".to_string());
         assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::DeleteSelection));
+    }
+
+    #[test]
+    fn test_normal_yank() {
+        let ev = InputEvent::Text("c".to_string());
+        assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::YankSelection));
+    }
+
+    #[test]
+    fn test_normal_paste() {
+        let ev = InputEvent::Text("v".to_string());
+        assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::PasteAfter));
+    }
+
+    #[test]
+    fn test_normal_paste_before() {
+        let ev = InputEvent::Text("V".to_string());
+        assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::PasteBefore));
+    }
+
+    #[test]
+    fn test_normal_change() {
+        let ev = InputEvent::Text("w".to_string());
+        assert_eq!(Keymap::handle(&ev, EditorMode::Normal), Some(Command::ChangeSelection));
     }
 
     #[test]
@@ -146,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_normal_unknown_key() {
-        let ev = InputEvent::Text("z".to_string());
+        let ev = InputEvent::Text("q".to_string());
         assert_eq!(Keymap::handle(&ev, EditorMode::Normal), None);
     }
 }

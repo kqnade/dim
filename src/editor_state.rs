@@ -126,6 +126,20 @@ impl EditorState {
         deleted
     }
 
+    /// Deletes the character under the cursor (for empty selection).
+    /// If at end of line and not last line, joins with next line.
+    pub fn delete_char(&mut self) {
+        let pos = self.selection.head;
+        let line_len = self.buffer.line_len(pos.line).unwrap_or(0);
+        if pos.col < line_len {
+            self.selection = Selection::new(pos, Position::new(pos.line, pos.col + 1));
+            self.delete_selection();
+        } else if pos.line + 1 < self.buffer.line_count() {
+            self.selection = Selection::new(pos, Position::new(pos.line + 1, 0));
+            self.delete_selection();
+        }
+    }
+
     pub fn undo(&mut self) -> bool {
         if let Some(txn) = self.undo_manager.undo() {
             self.buffer.apply_transaction_inverse(&txn);

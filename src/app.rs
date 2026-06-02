@@ -33,7 +33,19 @@ pub fn execute_command(cmd: Command, state: &mut EditorState) -> AppAction {
             state.move_head_to(Position::new(last_line, len));
         }
         Command::DeleteSelection => {
-            state.delete_selection();
+            if state.selection.is_empty() {
+                state.delete_char();
+            } else {
+                state.delete_selection();
+            }
+        }
+        Command::ChangeSelection => {
+            if state.selection.is_empty() {
+                state.delete_char();
+            } else {
+                state.delete_selection();
+            }
+            state.set_mode(EditorMode::Insert);
         }
         Command::YankSelection => {
             state.yank_selection();
