@@ -316,6 +316,17 @@ Fatal errors must restore terminal state before exiting.
 - No plugin system at first
 - Terminal state must be restored
 - Text correctness over feature count
+- **Test-driven development (TDD)** — write tests before implementation
+- **High test coverage** — target 90%+ coverage for all public APIs
+- **Edge-case testing** — empty inputs, boundaries, invalid ranges, UTF-8 Japanese text
+
+## Testing Guidelines
+
+- Use `#[cfg(test)]` modules at the bottom of each source file.
+- Every `pub` function should have at least one corresponding test.
+- Write failing tests first, then implement the minimal code to make them pass.
+- `cargo test` must pass before any task is considered complete.
+- Include edge cases: empty buffers, first/last line, line start/end, multi-byte UTF-8, mixed line endings (`\n` and `\r\n`).
 
 ## Open Decisions
 
