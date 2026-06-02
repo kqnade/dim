@@ -110,6 +110,26 @@ pub fn execute_command(cmd: Command, state: &mut EditorState) -> AppAction {
                 return AppAction::ShowMessage("Nothing to redo".to_string());
             }
         }
+        Command::SearchForward(ref query) => {
+            if !state.search_forward(query) {
+                return AppAction::ShowMessage(format!("Pattern not found: {}", query));
+            }
+        }
+        Command::SearchBackward(ref query) => {
+            if !state.search_backward(query) {
+                return AppAction::ShowMessage(format!("Pattern not found: {}", query));
+            }
+        }
+        Command::SearchNext => {
+            if !state.search_forward(&state.search_query.clone()) {
+                return AppAction::ShowMessage(format!("Pattern not found: {}", state.search_query));
+            }
+        }
+        Command::SearchPrevious => {
+            if !state.search_backward(&state.search_query.clone()) {
+                return AppAction::ShowMessage(format!("Pattern not found: {}", state.search_query));
+            }
+        }
         _ => {}
     }
     AppAction::Continue
@@ -259,9 +279,28 @@ impl App {
         }
     }
 
-    fn handle_search_mode(&mut self, _input: &InputEvent) {
-        // MVP: search mode just returns to normal on any key
-        self.state.set_mode(EditorMode::Normal);
+    fn handle_search_mode(&mut self, input: &InputEvent) {
+        match input {
+            InputEvent::Key { code: KeyCode::Escape, .. } => {
+                self.state.search_query.clear();
+                self.state.set_mode(EditorMode::Normal);
+            }
+            InputEvent::Key { code: KeyCode::Enter, .. } => {
+                let query = self.state.search_query.clone();
+                self.state.search_query.clear();
+                self.state.set_mode(EditorMode::Normal);
+                if !self.state.search_forward(&query) {
+                    self.state.message = Some(format!("Pattern not found: {}", query));
+                }
+            }
+            InputEvent::Key { code: KeyCode::Backspace, .. } => {
+                self.state.search_query.pop();
+            }
+            InputEvent::Text(text) | InputEvent::Paste(text) => {
+                self.state.search_query.push_str(text);
+            }
+            _ => {}
+        }
     }
 
     fn execute_command_line(&mut self, cmd_str: &str) {

@@ -35,6 +35,7 @@ impl Renderer {
 
         let status_row = match state.mode {
             EditorMode::Command => format!(":{}", state.command_buffer),
+            EditorMode::Search => format!("/{}", state.search_query),
             _ => self.build_status_line(state),
         };
         rows.push(status_row);
@@ -235,6 +236,16 @@ mod tests {
         state.message = Some("File saved".to_string());
         let frame = r.render(&state);
         assert_eq!(frame.rows[1], "File saved");
+    }
+
+    #[test]
+    fn test_render_search_mode() {
+        let r = Renderer::new(40, 2);
+        let mut state = EditorState::new();
+        state.set_mode(EditorMode::Search);
+        state.search_query = "hello".to_string();
+        let frame = r.render(&state);
+        assert_eq!(frame.rows[1], "/hello");
     }
 
     #[test]

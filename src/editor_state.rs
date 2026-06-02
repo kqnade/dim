@@ -22,6 +22,7 @@ pub struct EditorState {
     pub file_path: Option<PathBuf>,
     pub command_buffer: String,
     pub yank_buffer: String,
+    pub search_query: String,
     undo_manager: UndoManager,
     current_transaction: Transaction,
 }
@@ -37,6 +38,7 @@ impl EditorState {
             file_path: None,
             command_buffer: String::new(),
             yank_buffer: String::new(),
+            search_query: String::new(),
             undo_manager: UndoManager::new(),
             current_transaction: Transaction::new(),
         }
@@ -50,6 +52,7 @@ impl EditorState {
         self.dirty = false;
         self.message = None;
         self.command_buffer.clear();
+        self.search_query.clear();
         self.undo_manager = UndoManager::new();
         Ok(())
     }
@@ -218,6 +221,64 @@ impl EditorState {
             let new_col = head.col.min(new_len);
             self.selection = Selection::cursor(Position::new(new_line, new_col));
         }
+    }
+
+    pub fn search_forward(&mut self, query: &str) -> bool {
+        if query.is_empty() {
+            return false;
+        }
+        let start_line = self.selection.head.line;
+        let start_col = self.selection.head.col;
+
+        // Search current line after cursor
+        if let Some(line) = self.buffer.line(start_line) {
+            if let Some(idx) = line[start_col..].find(query) {
+                let found_col = start_col + idx;
+                self.selection = Selection::cursor(Position::new(start_line, found_col));
+                return true;
+            }
+        }
+
+        // Search subsequent lines
+        for line_idx in (start_line + 1)..self.buffer.line_count() {
+            if let Some(line) = self.buffer.line(line_idx) {
+                if let Some(idx) = line.find(query) {
+                    self.selection = Selection::cursor(Position::new(line_idx, idx));
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    pub fn search_backward(&mut self, query: &str) -> bool {
+        if query.is_empty() {
+            return false;
+        }
+        let start_line = self.selection.head.line;
+        let start_col = self.selection.head.col;
+
+        // Search current line before cursor
+        if let Some(line) = self.buffer.line(start_line) {
+            let before = &line[..start_col];
+            if let Some(idx) = before.rfind(query) {
+                self.selection = Selection::cursor(Position::new(start_line, idx));
+                return true;
+            }
+        }
+
+        // Search preceding lines
+        for line_idx in (0..start_line).rev() {
+            if let Some(line) = self.buffer.line(line_idx) {
+                if let Some(idx) = line.rfind(query) {
+                    self.selection = Selection::cursor(Position::new(line_idx, idx));
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     pub fn clamp_position(&self, pos: Position) -> Position {
@@ -566,5 +627,54 @@ mod tests {
         state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
         state.delete_selection();
         assert_eq!(state.yank_buffer, "world");
+    }
+
+    #[test]
+    fn test_search_forward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let found = state.search_forward("hello");
+        assert!(found);
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_search_forward_next_line() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.selection = Selection::cursor(Position::new(0, 2));
+        let found = state.search_forward("hello");
+        assert!(found);
+        assert_eq!(state.selection.head, Position::new(1, 0));
+    }
+
+    #[test]
+    fn test_search_forward_not_found() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let found = state.search_forward("xyz");
+        assert!(!found);
+    }
+
+    #[test]
+    fn test_search_backward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.selection = Selection::cursor(Position::new(1, 5));
+        let found = state.search_backward("hello");
+        assert!(found);
+        assert_eq!(state.selection.head, Position::new(1, 0));
+    }
+
+    #[test]
+    fn test_search_backward_prev_line() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.selection = Selection::cursor(Position::new(1, 0));
+        let found = state.search_backward("hello");
+        assert!(found);
+        assert_eq!(state.selection.head, Position::new(0, 0));
     }
 }
