@@ -147,6 +147,7 @@ pub struct App {
     #[allow(dead_code)]
     registry: CommandRegistry,
     should_quit: bool,
+    keymap: Keymap,
     #[allow(dead_code)]
     config: Config,
 }
@@ -168,9 +169,10 @@ impl App {
         Ok(Self {
             terminal,
             state,
-            renderer: Renderer::new(cols as usize, rows as usize),
+            renderer: Renderer::new(cols as usize, rows as usize, config.tab_width),
             registry: CommandRegistry::new(),
             should_quit: false,
+            keymap: Keymap::new(),
             config,
         })
     }
@@ -219,14 +221,14 @@ impl App {
         if let Some(input) = crate::input::parse_crossterm_event(event) {
             match input {
                 InputEvent::Resize { cols, rows } => {
-                    self.renderer = Renderer::new(cols as usize, rows as usize);
+                    self.renderer = Renderer::new(cols as usize, rows as usize, self.config.tab_width);
                 }
                 _ => match self.state.mode {
                     EditorMode::Insert => self.handle_insert_mode(&input),
                     EditorMode::Command => self.handle_command_mode(&input),
                     EditorMode::Search => self.handle_search_mode(&input),
                     EditorMode::Normal => {
-                        if let Some(cmd) = Keymap::handle(&input, EditorMode::Normal) {
+                        if let Some(cmd) = self.keymap.handle(&input, EditorMode::Normal) {
                             self.run_command(cmd);
                         }
                     }
@@ -239,6 +241,7 @@ impl App {
     fn handle_insert_mode(&mut self, input: &InputEvent) {
         match input {
             InputEvent::Key { code: KeyCode::Escape, .. } => {
+                self.keymap.clear_prefix();
                 self.state.set_mode(EditorMode::Normal);
             }
             InputEvent::Key { code: KeyCode::Char('j'), modifiers } if modifiers.ctrl => {
@@ -307,10 +310,12 @@ impl App {
     fn handle_command_mode(&mut self, input: &InputEvent) {
         match input {
             InputEvent::Key { code: KeyCode::Escape, .. } => {
+                self.keymap.clear_prefix();
                 self.state.command_buffer.clear();
                 self.state.set_mode(EditorMode::Normal);
             }
             InputEvent::Key { code: KeyCode::Enter, .. } => {
+                self.keymap.clear_prefix();
                 let cmd_str = self.state.command_buffer.clone();
                 self.state.command_buffer.clear();
                 self.state.set_mode(EditorMode::Normal);
@@ -329,10 +334,12 @@ impl App {
     fn handle_search_mode(&mut self, input: &InputEvent) {
         match input {
             InputEvent::Key { code: KeyCode::Escape, .. } => {
+                self.keymap.clear_prefix();
                 self.state.search_query.clear();
                 self.state.set_mode(EditorMode::Normal);
             }
             InputEvent::Key { code: KeyCode::Enter, .. } => {
+                self.keymap.clear_prefix();
                 let query = self.state.search_query.clone();
                 self.state.search_query.clear();
                 self.state.set_mode(EditorMode::Normal);
@@ -385,7 +392,11 @@ impl App {
     }
 
     fn run_command(&mut self, cmd: Command) {
+        let prev_mode = self.state.mode;
         let action = execute_command(cmd, &mut self.state);
+        if self.state.mode != prev_mode {
+            self.keymap.clear_prefix();
+        }
         match action {
             AppAction::Continue => {}
             AppAction::Quit => self.should_quit = true,
