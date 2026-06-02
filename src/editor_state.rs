@@ -2,6 +2,7 @@ use crate::buffer::LineBuffer;
 use crate::file_io::{read_file, write_file, FileError};
 use crate::position::Position;
 use crate::selection::Selection;
+use crate::skk::SkkEngine;
 use crate::undo::{EditOp, Transaction, UndoManager};
 use std::path::PathBuf;
 
@@ -23,6 +24,8 @@ pub struct EditorState {
     pub command_buffer: String,
     pub yank_buffer: String,
     pub search_query: String,
+    pub skk_engine: SkkEngine,
+    pub skk_enabled: bool,
     undo_manager: UndoManager,
     current_transaction: Transaction,
 }
@@ -39,6 +42,8 @@ impl EditorState {
             command_buffer: String::new(),
             yank_buffer: String::new(),
             search_query: String::new(),
+            skk_engine: SkkEngine::new(),
+            skk_enabled: true,
             undo_manager: UndoManager::new(),
             current_transaction: Transaction::new(),
         }

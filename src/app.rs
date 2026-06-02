@@ -4,6 +4,8 @@ use crate::editor_state::{EditorMode, EditorState};
 use crate::input::{InputEvent, KeyCode};
 use crate::keymap::Keymap;
 use crate::renderer::Renderer;
+use crate::selection::Selection;
+use crate::skk::SkkAction;
 use crate::terminal::Terminal;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,6 +160,7 @@ impl App {
         }
 
         let config = Self::load_config();
+        state.skk_enabled = config.skk_enabled;
 
         Ok(Self {
             terminal,
@@ -231,12 +234,20 @@ impl App {
     }
 
     fn handle_insert_mode(&mut self, input: &InputEvent) {
+        use crate::skk::SkkAction;
+
         match input {
             InputEvent::Key { code: KeyCode::Escape, .. } => {
                 self.state.set_mode(EditorMode::Normal);
             }
+            InputEvent::Key { code: KeyCode::Char('j'), modifiers } if modifiers.ctrl => {
+                self.state.skk_engine.toggle();
+            }
             InputEvent::Key { code: KeyCode::Backspace, .. } => {
-                if self.state.selection.head.col > 0 || self.state.selection.head.line > 0 {
+                if self.state.skk_enabled && self.state.skk_engine.state != crate::skk::SkkState::Direct {
+                    let action = self.state.skk_engine.cancel();
+                    self.apply_skk_action(action);
+                } else if self.state.selection.head.col > 0 || self.state.selection.head.line > 0 {
                     self.state.move_cursor_left();
                     self.state.delete_char();
                 }
@@ -245,15 +256,50 @@ impl App {
                 self.state.delete_char();
             }
             InputEvent::Key { code: KeyCode::Enter, .. } => {
-                self.state.insert_at_cursor("\n");
+                if self.state.skk_enabled && self.state.skk_engine.state != crate::skk::SkkState::Direct {
+                    let action = self.state.skk_engine.confirm();
+                    self.apply_skk_action(action);
+                } else {
+                    self.state.insert_at_cursor("\n");
+                }
             }
             InputEvent::Key { code: KeyCode::Tab, .. } => {
                 self.state.insert_at_cursor("\t");
             }
             InputEvent::Text(text) | InputEvent::Paste(text) => {
-                self.state.insert_at_cursor(text);
+                if self.state.skk_enabled && self.state.skk_engine.state != crate::skk::SkkState::Direct {
+                    for ch in text.chars() {
+                        let action = self.state.skk_engine.process_char(ch);
+                        self.apply_skk_action(action);
+                    }
+                } else {
+                    self.state.insert_at_cursor(text);
+                }
             }
             _ => {}
+        }
+    }
+
+    fn apply_skk_action(&mut self, action: SkkAction) {
+        match action {
+            SkkAction::None => {}
+            SkkAction::Insert(text) => {
+                self.state.insert_at_cursor(&text);
+            }
+            SkkAction::Convert { reading, candidate } => {
+                // Delete the reading and insert the candidate
+                let head = self.state.selection.head;
+                let reading_len = reading.chars().count();
+                if reading_len > 0 && head.col >= reading_len {
+                    let start = Position::new(head.line, head.col - reading_len);
+                    self.state.selection = Selection::new(start, head);
+                    self.state.delete_selection();
+                    self.state.insert_at_cursor(&candidate);
+                } else {
+                    self.state.insert_at_cursor(&candidate);
+                }
+            }
+            SkkAction::Cancel => {}
         }
     }
 
