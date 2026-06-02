@@ -1,4 +1,5 @@
 pub mod buffer;
+pub mod command;
 pub mod config;
 pub mod editor_state;
 pub mod file_io;
