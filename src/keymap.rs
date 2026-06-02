@@ -72,6 +72,13 @@ impl Keymap {
                     self.prefix_stack.clear();
                     Some(Command::EnterCommandMode)
                 }
+                InputEvent::Key {
+                    code: KeyCode::Char('x'),
+                    modifiers,
+                } if !modifiers.ctrl => {
+                    self.prefix_stack.clear();
+                    Some(Command::EnterCommandMode)
+                }
                 // Cancel prefix with Ctrl+G or Escape
                 InputEvent::Key {
                     code: KeyCode::Char('g'),
@@ -186,13 +193,16 @@ impl Keymap {
             // Page scroll
             "j" => Some(Command::PageUp),
             "k" => Some(Command::PageDown),
+            // Line movement
+            "0" => Some(Command::MoveLineStart),
+            "$" => Some(Command::MoveLineEnd),
             // Word movement
             "l" => Some(Command::MoveWordBackward),
             "u" => Some(Command::MoveWordForward),
-            // Colemak-DH: s = insert (since i is right)
+            // Colemak-DH: s = insert, t = append
             "s" => Some(Command::EnterInsertMode),
-            // Command mode
-            ";" => Some(Command::EnterCommandMode),
+            "t" => Some(Command::EnterAppendMode),
+            // Search mode
             "/" => Some(Command::EnterSearchMode),
             // Selection
             "a" => Some(Command::VisualMode),
@@ -207,6 +217,13 @@ impl Keymap {
             "Z" => Some(Command::Redo),
             // File end
             "G" => Some(Command::MoveFileEnd),
+            // Toggle case
+            "~" => Some(Command::ToggleCase),
+            // Indent / unindent
+            ">" => Some(Command::IndentSelection),
+            "<" => Some(Command::UnindentSelection),
+            // Jump matching pair
+            "%" => Some(Command::JumpMatchingPair),
             // Change (reserved for now, same as before)
             "w" => Some(Command::ChangeSelection),
             _ => None,
@@ -311,12 +328,32 @@ mod tests {
     }
 
     #[test]
-    fn test_normal_enter_command() {
+    fn test_normal_enter_append() {
         let mut keymap = Keymap::new();
-        let ev = InputEvent::Text(";".to_string());
+        let ev = InputEvent::Text("t".to_string());
         assert_eq!(
             keymap.handle(&ev, EditorMode::Normal),
-            Some(Command::EnterCommandMode)
+            Some(Command::EnterAppendMode)
+        );
+    }
+
+    #[test]
+    fn test_normal_line_start() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("0".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::MoveLineStart)
+        );
+    }
+
+    #[test]
+    fn test_normal_line_end() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("$".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::MoveLineEnd)
         );
     }
 
@@ -455,19 +492,19 @@ mod tests {
     }
 
     #[test]
-    fn test_prefix_cx_cf_command_mode() {
+    fn test_prefix_cx_x_command_mode() {
         let mut keymap = Keymap::new();
         let cx = InputEvent::Key {
             code: KeyCode::Char('x'),
             modifiers: Modifiers::ctrl(),
         };
         assert_eq!(keymap.handle(&cx, EditorMode::Normal), None);
-        let cf = InputEvent::Key {
-            code: KeyCode::Char('f'),
-            modifiers: Modifiers::ctrl(),
+        let x = InputEvent::Key {
+            code: KeyCode::Char('x'),
+            modifiers: Modifiers::none(),
         };
         assert_eq!(
-            keymap.handle(&cf, EditorMode::Normal),
+            keymap.handle(&x, EditorMode::Normal),
             Some(Command::EnterCommandMode)
         );
     }
@@ -617,6 +654,46 @@ mod tests {
         assert_eq!(
             keymap.handle(&ev, EditorMode::Normal),
             Some(Command::MoveFileEnd)
+        );
+    }
+
+    #[test]
+    fn test_normal_toggle_case() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("~".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::ToggleCase)
+        );
+    }
+
+    #[test]
+    fn test_normal_indent() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text(">".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::IndentSelection)
+        );
+    }
+
+    #[test]
+    fn test_normal_unindent() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("<".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::UnindentSelection)
+        );
+    }
+
+    #[test]
+    fn test_normal_jump_matching_pair() {
+        let mut keymap = Keymap::new();
+        let ev = InputEvent::Text("%".to_string());
+        assert_eq!(
+            keymap.handle(&ev, EditorMode::Normal),
+            Some(Command::JumpMatchingPair)
         );
     }
 

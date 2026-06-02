@@ -98,8 +98,21 @@ pub fn execute_command(cmd: Command, state: &mut EditorState) -> AppAction {
                 state.insert_at_cursor(&text);
             }
         }
+        Command::ToggleCase => {
+            state.toggle_case();
+        }
+        Command::IndentSelection => {
+            state.indent_selection();
+        }
+        Command::UnindentSelection => {
+            state.unindent_selection();
+        }
+        Command::JumpMatchingPair => {
+            state.jump_matching_pair();
+        }
         Command::EnterNormalMode => state.set_mode(EditorMode::Normal),
         Command::EnterInsertMode => state.set_mode(EditorMode::Insert),
+        Command::EnterAppendMode => state.enter_append_mode(),
         Command::EnterCommandMode => {
             state.command_buffer.clear();
             state.set_mode(EditorMode::Command);
@@ -474,6 +487,17 @@ mod tests {
     }
 
     #[test]
+    fn test_execute_enter_append_mode() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 2));
+        let action = execute_command(Command::EnterAppendMode, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.mode, EditorMode::Insert);
+        assert_eq!(state.selection.head, Position::new(0, 3));
+    }
+
+    #[test]
     fn test_execute_enter_normal_mode() {
         let mut state = EditorState::new();
         state.set_mode(EditorMode::Insert);
@@ -564,6 +588,47 @@ mod tests {
         let action = execute_command(Command::PasteBefore, &mut state);
         assert_eq!(action, AppAction::Continue);
         assert_eq!(state.buffer.to_string(), "aXYb");
+    }
+
+    #[test]
+    fn test_execute_toggle_case() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let action = execute_command(Command::ToggleCase, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.buffer.to_string(), "Hello");
+        assert_eq!(state.selection.head, Position::new(0, 1));
+    }
+
+    #[test]
+    fn test_execute_indent_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line1\nline2");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(1, 0));
+        let action = execute_command(Command::IndentSelection, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.buffer.to_string(), "\tline1\n\tline2");
+    }
+
+    #[test]
+    fn test_execute_unindent_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("\tline1\n\tline2");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(1, 0));
+        let action = execute_command(Command::UnindentSelection, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.buffer.to_string(), "line1\nline2");
+    }
+
+    #[test]
+    fn test_execute_jump_matching_pair() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("(hello)");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let action = execute_command(Command::JumpMatchingPair, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 6));
     }
 
     #[test]

@@ -183,6 +183,20 @@ impl EditorState {
         self.mode = mode;
     }
 
+    pub fn enter_append_mode(&mut self) {
+        if self.selection.is_empty() {
+            let head = self.selection.head;
+            let line_len = self.buffer.line_len(head.line).unwrap_or(0);
+            if head.col < line_len {
+                self.selection = Selection::cursor(Position::new(head.line, head.col + 1));
+            }
+        } else {
+            let (_, end) = self.selection.sorted();
+            self.selection = Selection::cursor(end);
+        }
+        self.mode = EditorMode::Insert;
+    }
+
     pub fn move_head_to(&mut self, pos: Position) {
         let clamped = self.clamp_position(pos);
         self.selection = Selection::cursor(clamped);
@@ -343,6 +357,165 @@ impl EditorState {
         self.selection = Selection::cursor(pos);
         self.dirty = true;
         self.mode = EditorMode::Insert;
+    }
+
+    pub fn toggle_case(&mut self) {
+        let (start, end) = self.selection.sorted();
+        if start == end {
+            // Toggle character under cursor and move right
+            let line = start.line;
+            let col = start.col;
+            let line_len = self.buffer.line_len(line).unwrap_or(0);
+            if col < line_len {
+                if let Some(text) = self.buffer.line(line) {
+                    let ch = text.chars().nth(col).unwrap_or('\0');
+                    let toggled = if ch.is_uppercase() {
+                        ch.to_lowercase().to_string()
+                    } else {
+                        ch.to_uppercase().to_string()
+                    };
+                    self.selection = Selection::new(start, Position::new(line, col + 1));
+                    self.delete_selection();
+                    self.insert_at_cursor(&toggled);
+                }
+            }
+        } else {
+            // Toggle case of selection
+            let selected = self.buffer.delete_range(start, end);
+            let toggled: String = selected
+                .chars()
+                .map(|ch| {
+                    if ch.is_uppercase() {
+                        ch.to_lowercase().next().unwrap_or(ch)
+                    } else {
+                        ch.to_uppercase().next().unwrap_or(ch)
+                    }
+                })
+                .collect();
+            self.buffer.insert(start, &toggled);
+            self.selection = Selection::new(start, Position::new(start.line, start.col + toggled.len()));
+            self.dirty = true;
+        }
+    }
+
+    pub fn indent_selection(&mut self) {
+        let start_line = self.selection.anchor.line.min(self.selection.head.line);
+        let end_line = self.selection.anchor.line.max(self.selection.head.line);
+
+        let mut txn = Transaction::new();
+        for line_idx in start_line..=end_line {
+            let pos = Position::new(line_idx, 0);
+            self.buffer.insert(pos, "\t");
+            txn.push(EditOp::Insert {
+                pos,
+                text: "\t".to_string(),
+            });
+        }
+
+        self.dirty = true;
+        self.push_transaction(txn);
+    }
+
+    pub fn unindent_selection(&mut self) {
+        let start_line = self.selection.anchor.line.min(self.selection.head.line);
+        let end_line = self.selection.anchor.line.max(self.selection.head.line);
+
+        let mut txn = Transaction::new();
+        for line_idx in start_line..=end_line {
+            if let Some(line) = self.buffer.line(line_idx) {
+                if line.starts_with('\t') {
+                    let pos = Position::new(line_idx, 0);
+                    self.selection = Selection::new(pos, Position::new(line_idx, 1));
+                    let deleted = self.delete_selection();
+                    txn.push(EditOp::Delete {
+                        pos,
+                        text: deleted,
+                    });
+                }
+            }
+        }
+
+        self.dirty = true;
+        self.push_transaction(txn);
+    }
+
+    pub fn jump_matching_pair(&mut self) {
+        let pos = self.selection.head;
+        let line = pos.line;
+        let col = pos.col;
+
+        if let Some(text) = self.buffer.line(line) {
+            let ch = text.chars().nth(col).unwrap_or('\0');
+            let (open, close, forward) = match ch {
+                '(' => ('(', ')', true),
+                ')' => ('(', ')', false),
+                '[' => ('[', ']', true),
+                ']' => ('[', ']', false),
+                '{' => ('{', '}', true),
+                '}' => ('{', '}', false),
+                _ => return,
+            };
+
+            if forward {
+                // Search forward for matching close
+                let mut depth = 1;
+                let mut current_line = line;
+                let mut current_col = col + 1;
+
+                while current_line < self.buffer.line_count() {
+                    if let Some(l) = self.buffer.line(current_line) {
+                        let chars: Vec<char> = l.chars().collect();
+                        while current_col < chars.len() {
+                            let c = chars[current_col];
+                            if c == open {
+                                depth += 1;
+                            } else if c == close {
+                                depth -= 1;
+                                if depth == 0 {
+                                    self.selection = Selection::cursor(Position::new(current_line, current_col));
+                                    return;
+                                }
+                            }
+                            current_col += 1;
+                        }
+                    }
+                    current_line += 1;
+                    current_col = 0;
+                }
+            } else {
+                // Search backward for matching open
+                let mut depth = 1;
+                let mut current_line = line;
+                let mut current_col = col;
+
+                loop {
+                    if let Some(l) = self.buffer.line(current_line) {
+                        let chars: Vec<char> = l.chars().collect();
+                        if current_col > chars.len() {
+                            current_col = chars.len();
+                        }
+                        while current_col > 0 {
+                            current_col -= 1;
+                            let c = chars[current_col];
+                            if c == close {
+                                depth += 1;
+                            } else if c == open {
+                                depth -= 1;
+                                if depth == 0 {
+                                    self.selection = Selection::cursor(Position::new(current_line, current_col));
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    if current_line == 0 {
+                        break;
+                    }
+                    current_line -= 1;
+                    current_col = self.buffer.line_len(current_line).unwrap_or(0);
+                }
+            }
+        }
     }
 
     pub fn open_line_above(&mut self) {
@@ -915,5 +1088,149 @@ mod tests {
         state.selection = Selection::cursor(Position::new(1, 0));
         state.page_down(2);
         assert_eq!(state.selection.head, Position::new(3, 0));
+    }
+
+    #[test]
+    fn test_enter_append_mode_at_cursor() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 2));
+        state.enter_append_mode();
+        assert_eq!(state.selection.head, Position::new(0, 3));
+        assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_enter_append_mode_at_end_of_line() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 5));
+        state.enter_append_mode();
+        assert_eq!(state.selection.head, Position::new(0, 5));
+        assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_enter_append_mode_with_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
+        state.enter_append_mode();
+        assert_eq!(state.selection.head, Position::new(0, 5));
+        assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_toggle_case_cursor() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.toggle_case();
+        assert_eq!(state.buffer.to_string(), "Hello");
+        assert_eq!(state.selection.head, Position::new(0, 1));
+    }
+
+    #[test]
+    fn test_toggle_case_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("Hello World");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
+        state.toggle_case();
+        assert_eq!(state.buffer.to_string(), "hELLO World");
+    }
+
+    #[test]
+    fn test_toggle_case_at_end_of_line() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 5));
+        state.toggle_case();
+        assert_eq!(state.buffer.to_string(), "hello");
+        assert_eq!(state.selection.head, Position::new(0, 5));
+    }
+
+    #[test]
+    fn test_indent_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line1\nline2\nline3");
+        state.selection = Selection::new(Position::new(0, 2), Position::new(1, 2));
+        state.indent_selection();
+        assert_eq!(state.buffer.to_string(), "\tline1\n\tline2\nline3");
+        assert!(state.dirty);
+        assert!(state.can_undo());
+    }
+
+    #[test]
+    fn test_indent_empty_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.selection = Selection::cursor(Position::new(1, 2));
+        state.indent_selection();
+        assert_eq!(state.buffer.to_string(), "hello\n\tworld");
+    }
+
+    #[test]
+    fn test_unindent_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("\tline1\n\tline2\nline3");
+        state.selection = Selection::new(Position::new(0, 2), Position::new(1, 2));
+        state.unindent_selection();
+        assert_eq!(state.buffer.to_string(), "line1\nline2\nline3");
+        assert!(state.dirty);
+        assert!(state.can_undo());
+    }
+
+    #[test]
+    fn test_unindent_no_indent() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line1\nline2");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(1, 0));
+        state.unindent_selection();
+        assert_eq!(state.buffer.to_string(), "line1\nline2");
+    }
+
+    #[test]
+    fn test_jump_matching_pair_forward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("(hello)");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.jump_matching_pair();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_jump_matching_pair_backward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("(hello)");
+        state.selection = Selection::cursor(Position::new(0, 6));
+        state.jump_matching_pair();
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_jump_matching_pair_nested() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("(a [b] c)");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.jump_matching_pair();
+        assert_eq!(state.selection.head, Position::new(0, 8));
+    }
+
+    #[test]
+    fn test_jump_matching_pair_no_bracket() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 2));
+        state.jump_matching_pair();
+        assert_eq!(state.selection.head, Position::new(0, 2));
+    }
+
+    #[test]
+    fn test_jump_matching_pair_braces() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("{a {b} c}");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.jump_matching_pair();
+        assert_eq!(state.selection.head, Position::new(0, 8));
     }
 }
