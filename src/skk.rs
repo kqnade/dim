@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkkState {
@@ -36,6 +38,54 @@ impl Dictionary {
 
     pub fn lookup(&self, reading: &str) -> Option<&Vec<String>> {
         self.entries.get(reading)
+    }
+
+    /// Load dictionary from SKK-JISYO format file (UTF-8).
+    /// Format: `reading /candidate1/candidate2/`
+    pub fn load_from_file(&mut self, path: &Path) -> std::io::Result<()> {
+        let content = fs::read_to_string(path)?;
+        for line in content.lines() {
+            if line.is_empty() || line.starts_with(";;") {
+                continue;
+            }
+            // Parse "reading /candidate1/candidate2/"
+            if let Some(sep_idx) = line.find(" /") {
+                let reading = &line[..sep_idx];
+                let candidates_part = &line[sep_idx + 2..]; // Skip " /"
+                if candidates_part.ends_with("/") {
+                    let candidates_str = &candidates_part[..candidates_part.len() - 1];
+                    let candidates: Vec<String> = candidates_str
+                        .split('/')
+                        .map(|s| s.to_string())
+                        .collect();
+                    if !candidates.is_empty() {
+                        self.entries.insert(reading.to_string(), candidates);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Save dictionary to SKK-JISYO format file (UTF-8).
+    pub fn save_to_file(&self, path: &Path) -> std::io::Result<()> {
+        let mut lines = Vec::new();
+        let mut keys: Vec<&String> = self.entries.keys().collect();
+        keys.sort();
+        for key in keys {
+            if let Some(candidates) = self.entries.get(key) {
+                let candidates_str = candidates.join("/");
+                lines.push(format!("{} /{}/", key, candidates_str));
+            }
+        }
+        fs::write(path, lines.join("\n") + "\n")?;
+        Ok(())
+    }
+
+    pub fn merge(&mut self, other: &Dictionary) {
+        for (reading, candidates) in &other.entries {
+            self.entries.insert(reading.clone(), candidates.clone());
+        }
     }
 }
 

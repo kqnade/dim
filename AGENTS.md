@@ -347,7 +347,7 @@ These are intentionally undecided and should be decided after the core editor mo
 ## Agent Rules
 
 - **Do not touch git config** — Never modify `.git/config`, global git config, or signing settings.
-- **If commit signing fails** — The user may be AFK. Skip signing for that commit (use `--no-gpg-sign`) and continue. Do not try to fix signing configuration.
+- **If commit signing fails** — Stop and wait for user. Do not use `--no-gpg-sign`.
 
 ## One-line Summary
 
