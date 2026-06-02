@@ -60,6 +60,68 @@ pub enum InputEvent {
     },
 }
 
+pub fn parse_crossterm_event(event: crossterm::event::Event) -> Option<InputEvent> {
+    use crossterm::event::{Event, KeyCode as CKeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+
+    match event {
+        Event::Key(KeyEvent { code, modifiers, kind, .. }) => {
+            if kind != KeyEventKind::Press {
+                return None;
+            }
+
+            let has_ctrl = modifiers.contains(KeyModifiers::CONTROL);
+            let has_alt = modifiers.contains(KeyModifiers::ALT);
+            let has_super = modifiers.contains(KeyModifiers::SUPER);
+
+            match code {
+                CKeyCode::Char(c) if !has_ctrl && !has_alt && !has_super => {
+                    Some(InputEvent::Text(c.to_string()))
+                }
+                _ => {
+                    let our_code = match code {
+                        CKeyCode::Backspace => KeyCode::Backspace,
+                        CKeyCode::Enter => KeyCode::Enter,
+                        CKeyCode::Left => KeyCode::Left,
+                        CKeyCode::Right => KeyCode::Right,
+                        CKeyCode::Up => KeyCode::Up,
+                        CKeyCode::Down => KeyCode::Down,
+                        CKeyCode::Home => KeyCode::Home,
+                        CKeyCode::End => KeyCode::End,
+                        CKeyCode::PageUp => KeyCode::PageUp,
+                        CKeyCode::PageDown => KeyCode::PageDown,
+                        CKeyCode::Tab => KeyCode::Tab,
+                        CKeyCode::Delete => KeyCode::Delete,
+                        CKeyCode::Esc => KeyCode::Escape,
+                        CKeyCode::Char(c) => KeyCode::Char(c),
+                        CKeyCode::F(n) => KeyCode::F(n),
+                        CKeyCode::Null => KeyCode::Null,
+                        _ => return None,
+                    };
+
+                    let our_mods = Modifiers {
+                        shift: modifiers.contains(KeyModifiers::SHIFT),
+                        ctrl: has_ctrl,
+                        alt: has_alt,
+                        super_key: has_super,
+                    };
+
+                    Some(InputEvent::Key {
+                        code: our_code,
+                        modifiers: our_mods,
+                    })
+                }
+            }
+        }
+        Event::Resize(cols, rows) => {
+            Some(InputEvent::Resize { rows, cols })
+        }
+        Event::Paste(data) => {
+            Some(InputEvent::Paste(data))
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,5 +174,72 @@ mod tests {
     fn test_input_event_resize() {
         let ev = InputEvent::Resize { rows: 24, cols: 80 };
         assert_eq!(ev, InputEvent::Resize { rows: 24, cols: 80 });
+    }
+
+    #[test]
+    fn test_parse_crossterm_char_text() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent, KeyModifiers};
+        let cevent = crossterm::event::Event::Key(KeyEvent::from(CKeyCode::Char('a')));
+        let ev = parse_crossterm_event(cevent).unwrap();
+        assert_eq!(ev, InputEvent::Text("a".to_string()));
+    }
+
+    #[test]
+    fn test_parse_crossterm_ctrl_char_key() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent, KeyModifiers};
+        let cevent = crossterm::event::Event::Key(KeyEvent {
+            code: CKeyCode::Char('c'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        });
+        let ev = parse_crossterm_event(cevent).unwrap();
+        assert_eq!(
+            ev,
+            InputEvent::Key {
+                code: KeyCode::Char('c'),
+                modifiers: Modifiers::ctrl(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_crossterm_escape() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent, KeyModifiers};
+        let cevent = crossterm::event::Event::Key(KeyEvent::from(CKeyCode::Esc));
+        let ev = parse_crossterm_event(cevent).unwrap();
+        assert_eq!(
+            ev,
+            InputEvent::Key {
+                code: KeyCode::Escape,
+                modifiers: Modifiers::none(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_crossterm_resize() {
+        let cevent = crossterm::event::Event::Resize(80, 24);
+        let ev = parse_crossterm_event(cevent).unwrap();
+        assert_eq!(ev, InputEvent::Resize { rows: 24, cols: 80 });
+    }
+
+    #[test]
+    fn test_parse_crossterm_paste() {
+        let cevent = crossterm::event::Event::Paste("hello".to_string());
+        let ev = parse_crossterm_event(cevent).unwrap();
+        assert_eq!(ev, InputEvent::Paste("hello".to_string()));
+    }
+
+    #[test]
+    fn test_parse_crossterm_release_ignored() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+        let cevent = crossterm::event::Event::Key(KeyEvent {
+            code: CKeyCode::Char('a'),
+            modifiers: KeyModifiers::empty(),
+            kind: KeyEventKind::Release,
+            state: crossterm::event::KeyEventState::empty(),
+        });
+        assert_eq!(parse_crossterm_event(cevent), None);
     }
 }
