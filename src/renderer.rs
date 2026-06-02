@@ -7,11 +7,16 @@ pub struct Frame {
 pub struct Renderer {
     width: usize,
     height: usize,
+    scroll_offset: usize,
 }
 
 impl Renderer {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height }
+        Self {
+            width,
+            height,
+            scroll_offset: 0,
+        }
     }
 
     pub fn render(&self, state: &EditorState) -> Frame {
@@ -19,7 +24,8 @@ impl Renderer {
         let text_height = self.height.saturating_sub(1);
 
         for i in 0..text_height {
-            if let Some(line) = state.buffer.line(i) {
+            let line_idx = self.scroll_offset + i;
+            if let Some(line) = state.buffer.line(line_idx) {
                 let rendered = truncate_to_width(line, self.width);
                 rows.push(rendered);
             } else {
@@ -36,10 +42,22 @@ impl Renderer {
         Frame { rows }
     }
 
+    /// Adjusts scroll offset so the cursor is visible on screen.
+    pub fn ensure_cursor_visible(&mut self, state: &EditorState) {
+        let text_height = self.height.saturating_sub(1);
+        let cursor_line = state.selection.head.line;
+
+        if cursor_line < self.scroll_offset {
+            self.scroll_offset = cursor_line;
+        } else if cursor_line >= self.scroll_offset + text_height {
+            self.scroll_offset = cursor_line.saturating_sub(text_height - 1);
+        }
+    }
+
     /// Returns (col, row) in terminal coordinates for the current selection head.
-    /// Scroll offset is not yet implemented; assumes file fits on screen.
     pub fn cursor_position(&self, state: &EditorState) -> (usize, usize) {
-        let row = state.selection.head.line.min(self.height.saturating_sub(2));
+        let row = state.selection.head.line.saturating_sub(self.scroll_offset);
+        let row = row.min(self.height.saturating_sub(2));
         let col = state.selection.head.col.min(self.width);
         (col, row)
     }
@@ -217,5 +235,49 @@ mod tests {
         state.message = Some("File saved".to_string());
         let frame = r.render(&state);
         assert_eq!(frame.rows[1], "File saved");
+    }
+
+    #[test]
+    fn test_scroll_offset_renders_correct_lines() {
+        let mut r = Renderer::new(10, 3);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        r.scroll_offset = 2;
+        let frame = r.render(&state);
+        assert_eq!(frame.rows[0], "line2");
+        assert_eq!(frame.rows[1], "line3");
+    }
+
+    #[test]
+    fn test_ensure_cursor_visible_scrolls_down() {
+        let mut r = Renderer::new(10, 3);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.selection = Selection::cursor(Position::new(3, 0));
+        r.ensure_cursor_visible(&state);
+        assert_eq!(r.scroll_offset, 2);
+    }
+
+    #[test]
+    fn test_ensure_cursor_visible_scrolls_up() {
+        let mut r = Renderer::new(10, 3);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        r.scroll_offset = 3;
+        state.selection = Selection::cursor(Position::new(1, 0));
+        r.ensure_cursor_visible(&state);
+        assert_eq!(r.scroll_offset, 1);
+    }
+
+    #[test]
+    fn test_cursor_position_with_scroll() {
+        let mut r = Renderer::new(10, 5);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        r.scroll_offset = 2;
+        state.selection = Selection::cursor(Position::new(3, 2));
+        let (col, row) = r.cursor_position(&state);
+        assert_eq!(col, 2);
+        assert_eq!(row, 1);
     }
 }

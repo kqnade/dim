@@ -155,6 +155,7 @@ impl App {
         use crossterm::{cursor, terminal, QueueableCommand};
         use std::io::Write;
 
+        self.renderer.ensure_cursor_visible(&self.state);
         let frame = self.renderer.render(&self.state);
         let stdout = std::io::stdout();
         let mut stdout = stdout.lock();
