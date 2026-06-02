@@ -327,6 +327,7 @@ Fatal errors must restore terminal state before exiting.
 - Write failing tests first, then implement the minimal code to make them pass.
 - `cargo test` must pass before any task is considered complete.
 - Include edge cases: empty buffers, first/last line, line start/end, multi-byte UTF-8, mixed line endings (`\n` and `\r\n`).
+- **Commit after each green test** — once a test passes, commit immediately. Keep history traceable: `test: ...` for test additions, `feat: ...` for implementations, `refactor: ...` for cleanups.
 
 ## Open Decisions
 
