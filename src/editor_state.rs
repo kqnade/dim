@@ -355,6 +355,27 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_char() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("abc");
+        state.selection = Selection::cursor(Position::new(0, 1));
+        state.delete_char();
+        assert_eq!(state.buffer.to_string(), "ac");
+        assert_eq!(state.selection, Selection::cursor(Position::new(0, 1)));
+        assert!(state.can_undo());
+    }
+
+    #[test]
+    fn test_delete_char_joins_lines() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("ab\ncd");
+        state.selection = Selection::cursor(Position::new(0, 2));
+        state.delete_char();
+        assert_eq!(state.buffer.to_string(), "abcd");
+        assert_eq!(state.selection, Selection::cursor(Position::new(0, 2)));
+    }
+
+    #[test]
     fn test_undo_insert() {
         let mut state = EditorState::new();
         state.insert_at_cursor("hello");
