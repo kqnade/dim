@@ -204,8 +204,11 @@ impl App {
             InputEvent::Key { code: KeyCode::Backspace, .. } => {
                 if self.state.selection.head.col > 0 || self.state.selection.head.line > 0 {
                     self.state.move_cursor_left();
-                    self.state.delete_selection();
+                    self.state.delete_char();
                 }
+            }
+            InputEvent::Key { code: KeyCode::Delete, .. } => {
+                self.state.delete_char();
             }
             InputEvent::Key { code: KeyCode::Enter, .. } => {
                 self.state.insert_at_cursor("\n");
