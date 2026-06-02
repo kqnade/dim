@@ -35,6 +35,12 @@ Key design choices:
 - QWERTY-first design
 - Multi-user configuration flexibility
 
+### Deferred Future Scope
+
+- LSP support is desirable later, but is not part of the first-version MVP.
+- Tree-sitter support is desirable later, but is not part of the first-version MVP.
+- Add language-aware features only after the core editor model, command system, rendering, file operations, and SKK path are stable.
+
 ### MVP Scope
 
 The minimum viable version should include:

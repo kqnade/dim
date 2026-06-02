@@ -70,7 +70,14 @@ This plan follows the project direction in `README.md` and `AGENTS.md`.
 - Render preedit and candidates outside buffer text.
 - Ensure SKK preedit does not mutate the buffer until confirmed.
 
-## 10. Documentation
+## 10. Deferred Language Intelligence
+
+- Do not include LSP or Tree-sitter in the first MVP.
+- Keep the architecture from blocking future LSP integration.
+- Keep the buffer, position, and rendering models precise enough to support future Tree-sitter integration.
+- Revisit LSP and Tree-sitter after the core editor model, command execution, terminal rendering, file operations, and SKK path are stable.
+
+## 11. Documentation
 
 - Update README with build instructions once the Cargo project exists.
 - Document implemented commands and current limitations.

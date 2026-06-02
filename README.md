@@ -19,15 +19,20 @@ A personal terminal-based text editor.
 - Small and understandable implementation
 - Personal workflow optimization
 
-## Non-goals
+## Non-goals for the First Version
 
 - Full Vim / Emacs / Helix compatibility
 - Plugin system
-- LSP
-- Tree-sitter
+- LSP integration
+- Tree-sitter integration
 - GUI
 - Complex tabs/windows/workspaces
 - QWERTY-first design
+
+## Future Scope
+
+- LSP support is desirable after the core editor model is stable.
+- Tree-sitter support is desirable after the core editor model is stable.
 
 ## Install
 
