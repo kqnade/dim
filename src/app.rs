@@ -163,19 +163,22 @@ impl App {
     }
 
     fn handle_input(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        use crossterm::event::{Event, KeyEventKind};
-
         let event = crossterm::event::read()?;
         if let Some(input) = crate::input::parse_crossterm_event(event) {
-            match self.state.mode {
-                EditorMode::Insert => self.handle_insert_mode(&input),
-                EditorMode::Command => self.handle_command_mode(&input),
-                EditorMode::Search => self.handle_search_mode(&input),
-                EditorMode::Normal => {
-                    if let Some(cmd) = Keymap::handle(&input, EditorMode::Normal) {
-                        self.run_command(cmd);
-                    }
+            match input {
+                InputEvent::Resize { cols, rows } => {
+                    self.renderer = Renderer::new(cols as usize, rows as usize);
                 }
+                _ => match self.state.mode {
+                    EditorMode::Insert => self.handle_insert_mode(&input),
+                    EditorMode::Command => self.handle_command_mode(&input),
+                    EditorMode::Search => self.handle_search_mode(&input),
+                    EditorMode::Normal => {
+                        if let Some(cmd) = Keymap::handle(&input, EditorMode::Normal) {
+                            self.run_command(cmd);
+                        }
+                    }
+                },
             }
         }
         Ok(())
@@ -273,9 +276,6 @@ impl App {
             AppAction::Quit => self.should_quit = true,
             AppAction::ForceQuit => self.should_quit = true,
             AppAction::ShowMessage(msg) => self.state.message = Some(msg),
-        }
-        if let Some(msg) = self.state.message.take() {
-            self.state.message = Some(msg);
         }
     }
 }

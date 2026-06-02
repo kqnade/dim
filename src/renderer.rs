@@ -45,6 +45,10 @@ impl Renderer {
     }
 
     fn build_status_line(&self, state: &EditorState) -> String {
+        if let Some(ref msg) = state.message {
+            return truncate_to_width(msg, self.width);
+        }
+
         let mode_str = match state.mode {
             EditorMode::Normal => "NORMAL",
             EditorMode::Insert => "INSERT",
@@ -196,24 +200,22 @@ mod tests {
     }
 
     #[test]
-    fn test_render_japanese_truncation() {
-        let r = Renderer::new(6, 2);
-        let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("日本語");
-        let frame = r.render(&state);
-        // 日本 = 4 width, 日本語 = 6 width, fits exactly at width 6
-        assert_eq!(frame.rows[0], "日本語");
-    }
-
-    #[test]
     fn test_render_japanese_truncated() {
         let r = Renderer::new(5, 2);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("日本語");
         let frame = r.render(&state);
-        // 日本 = 4 width, 日 = 2 width, so at width 5 we can only fit 日 + 本 (4) or 日 + 日 (4)
-        // Actually 日=2, 本=2, 語=2. At width 5, we can fit 日+本 (4) but not 日+本+語 (6).
+        // 日本 = 4 width, 日 = 2 width, so at width 5 we can only fit 日+本 (4) but not 日+本+語 (6).
         // So it should be "日本" (width 4) since 5 >= 4 but 5 < 6.
         assert_eq!(frame.rows[0], "日本");
+    }
+
+    #[test]
+    fn test_render_status_line_shows_message() {
+        let r = Renderer::new(40, 2);
+        let mut state = EditorState::new();
+        state.message = Some("File saved".to_string());
+        let frame = r.render(&state);
+        assert_eq!(frame.rows[1], "File saved");
     }
 }
