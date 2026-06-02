@@ -6,39 +6,138 @@ pub struct LineBuffer {
 
 impl LineBuffer {
     pub fn new() -> Self {
-        todo!()
+        Self {
+            lines: vec![String::new()],
+        }
     }
 
     pub fn from_str(text: &str) -> Self {
-        todo!()
+        let normalized = text.replace("\r\n", "\n");
+        let lines: Vec<String> = normalized.split('\n').map(String::from).collect();
+        Self { lines }
     }
 
     pub fn insert(&mut self, pos: Position, text: &str) -> Position {
-        todo!()
+        let normalized = text.replace("\r\n", "\n");
+        let inserted_lines: Vec<&str> = normalized.split('\n').collect();
+
+        if pos.line >= self.lines.len() {
+            return pos;
+        }
+
+        let current_line = &self.lines[pos.line];
+        let byte_idx = char_idx_to_byte_idx(current_line, pos.col);
+
+        if inserted_lines.len() == 1 {
+            self.lines[pos.line].insert_str(byte_idx, inserted_lines[0]);
+            Position::new(pos.line, pos.col + inserted_lines[0].chars().count())
+        } else {
+            let after = self.lines[pos.line].split_off(byte_idx);
+            self.lines[pos.line].push_str(inserted_lines[0]);
+
+            let last_inserted = inserted_lines[inserted_lines.len() - 1];
+            let last_line = last_inserted.to_string() + &after;
+
+            let mut new_lines: Vec<String> = inserted_lines[1..inserted_lines.len() - 1]
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+            new_lines.push(last_line);
+
+            self.lines
+                .splice((pos.line + 1)..(pos.line + 1), new_lines);
+
+            let last_line_idx = pos.line + inserted_lines.len() - 1;
+            let last_col = last_inserted.chars().count();
+            Position::new(last_line_idx, last_col)
+        }
     }
 
     pub fn delete_range(&mut self, start: Position, end: Position) -> String {
-        todo!()
+        let (start, end) = if start <= end {
+            (start, end)
+        } else {
+            (end, start)
+        };
+
+        if start.line == end.line {
+            let line = &mut self.lines[start.line];
+            let start_byte = char_idx_to_byte_idx(line, start.col);
+            let end_byte = char_idx_to_byte_idx(line, end.col);
+            let deleted = line[start_byte..end_byte].to_string();
+            line.replace_range(start_byte..end_byte, "");
+            deleted
+        } else {
+            let start_line = &self.lines[start.line];
+            let start_byte = char_idx_to_byte_idx(start_line, start.col);
+            let start_deleted = &start_line[start_byte..];
+
+            let end_line = &self.lines[end.line];
+            let end_byte = char_idx_to_byte_idx(end_line, end.col);
+            let end_deleted = &end_line[..end_byte];
+
+            let mut deleted = String::new();
+            deleted.push_str(start_deleted);
+            for i in (start.line + 1)..end.line {
+                deleted.push('\n');
+                deleted.push_str(&self.lines[i]);
+            }
+            deleted.push('\n');
+            deleted.push_str(end_deleted);
+
+            let before = self.lines[start.line][..start_byte].to_string();
+            let after = self.lines[end.line][end_byte..].to_string();
+            self.lines[start.line] = before + &after;
+            self.lines.drain((start.line + 1)..=end.line);
+
+            deleted
+        }
     }
 
     pub fn line(&self, line: usize) -> Option<&str> {
-        todo!()
+        self.lines.get(line).map(|s| s.as_str())
     }
 
     pub fn line_count(&self) -> usize {
-        todo!()
+        self.lines.len()
     }
 
     pub fn to_string(&self) -> String {
-        todo!()
+        self.lines.join("\n")
     }
 
     pub fn line_len(&self, line: usize) -> Option<usize> {
-        todo!()
+        self.lines.get(line).map(|s| s.chars().count())
     }
 
     pub fn display_width(&self, pos: Position, tab_width: usize) -> Option<usize> {
-        todo!()
+        let line = self.lines.get(pos.line)?;
+        if pos.col > line.chars().count() {
+            return None;
+        }
+        let mut width = 0;
+        for (i, ch) in line.chars().enumerate() {
+            if i >= pos.col {
+                break;
+            }
+            width += char_display_width(ch, tab_width, width);
+        }
+        Some(width)
+    }
+}
+
+fn char_idx_to_byte_idx(s: &str, char_idx: usize) -> usize {
+    s.char_indices()
+        .nth(char_idx)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len())
+}
+
+fn char_display_width(ch: char, tab_width: usize, current_width: usize) -> usize {
+    if ch == '\t' {
+        tab_width - (current_width % tab_width)
+    } else {
+        unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0)
     }
 }
 
@@ -206,10 +305,9 @@ mod tests {
         let mut buf = LineBuffer::from_str("a\nb\nc");
         let deleted = buf.delete_range(Position::new(0, 1), Position::new(2, 0));
         assert_eq!(deleted, "\nb\n");
-        assert_eq!(buf.line_count(), 2);
-        assert_eq!(buf.line(0), Some("a"));
-        assert_eq!(buf.line(1), Some("c"));
-        assert_eq!(buf.to_string(), "a\nc");
+        assert_eq!(buf.line_count(), 1);
+        assert_eq!(buf.line(0), Some("ac"));
+        assert_eq!(buf.to_string(), "ac");
     }
 
     #[test]
