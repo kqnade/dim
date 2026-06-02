@@ -1,4 +1,5 @@
 use crate::position::Position;
+use crate::undo::{EditOp, Transaction};
 
 pub struct LineBuffer {
     lines: Vec<String>,
@@ -123,6 +124,43 @@ impl LineBuffer {
             width += char_display_width(ch, tab_width, width);
         }
         Some(width)
+    }
+
+    pub fn apply_transaction(&mut self, txn: &Transaction) {
+        for op in &txn.ops {
+            match op {
+                EditOp::Insert { pos, text } => {
+                    self.insert(*pos, text);
+                }
+                EditOp::Delete { pos, text } => {
+                    let end = insert_end_pos(*pos, text);
+                    self.delete_range(*pos, end);
+                }
+            }
+        }
+    }
+
+    pub fn apply_transaction_inverse(&mut self, txn: &Transaction) {
+        for op in txn.ops.iter().rev() {
+            match op {
+                EditOp::Insert { pos, text } => {
+                    let end = insert_end_pos(*pos, text);
+                    self.delete_range(*pos, end);
+                }
+                EditOp::Delete { pos, text } => {
+                    self.insert(*pos, text);
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn insert_end_pos(start: Position, text: &str) -> Position {
+    let lines: Vec<&str> = text.split('\n').collect();
+    if lines.len() == 1 {
+        Position::new(start.line, start.col + text.chars().count())
+    } else {
+        Position::new(start.line + lines.len() - 1, lines.last().unwrap().chars().count())
     }
 }
 
