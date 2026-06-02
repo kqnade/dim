@@ -19,10 +19,38 @@ pub enum AppAction {
 /// Executes a single editor command against the current state.
 pub fn execute_command(cmd: Command, state: &mut EditorState) -> AppAction {
     match cmd {
-        Command::MoveLeft => state.move_cursor_left(),
-        Command::MoveRight => state.move_cursor_right(),
-        Command::MoveUp => state.move_cursor_up(),
-        Command::MoveDown => state.move_cursor_down(),
+        Command::MoveLeft => {
+            if state.selection.is_empty() {
+                state.move_cursor_left();
+            } else {
+                state.extend_selection_left();
+            }
+        }
+        Command::MoveRight => {
+            if state.selection.is_empty() {
+                state.move_cursor_right();
+            } else {
+                state.extend_selection_right();
+            }
+        }
+        Command::MoveUp => {
+            if state.selection.is_empty() {
+                state.move_cursor_up();
+            } else {
+                state.extend_selection_up();
+            }
+        }
+        Command::MoveDown => {
+            if state.selection.is_empty() {
+                state.move_cursor_down();
+            } else {
+                state.extend_selection_down();
+            }
+        }
+        Command::PageUp => state.page_up(10),
+        Command::PageDown => state.page_down(10),
+        Command::MoveWordForward => state.move_word_forward(),
+        Command::MoveWordBackward => state.move_word_backward(),
         Command::MoveLineStart => state.move_head_to(Position::new(state.selection.head.line, 0)),
         Command::MoveLineEnd => {
             let line = state.selection.head.line;
@@ -35,6 +63,10 @@ pub fn execute_command(cmd: Command, state: &mut EditorState) -> AppAction {
             let len = state.buffer.line_len(last_line).unwrap_or(0);
             state.move_head_to(Position::new(last_line, len));
         }
+        Command::VisualMode => state.visual_mode(),
+        Command::SelectLine => state.select_line(),
+        Command::OpenLineAbove => state.open_line_above(),
+        Command::OpenLineBelow => state.open_line_below(),
         Command::DeleteSelection => {
             if state.selection.is_empty() {
                 state.delete_char();
@@ -532,5 +564,91 @@ mod tests {
         let action = execute_command(Command::PasteBefore, &mut state);
         assert_eq!(action, AppAction::Continue);
         assert_eq!(state.buffer.to_string(), "aXYb");
+    }
+
+    #[test]
+    fn test_execute_visual_mode() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 2));
+        let action = execute_command(Command::VisualMode, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.anchor, Position::new(0, 2));
+        assert_eq!(state.selection.head, Position::new(0, 2));
+    }
+
+    #[test]
+    fn test_execute_select_line() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("line1\nline2");
+        state.selection = Selection::cursor(Position::new(0, 2));
+        let action = execute_command(Command::SelectLine, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.anchor, Position::new(0, 0));
+        assert_eq!(state.selection.head, Position::new(1, 0));
+    }
+
+    #[test]
+    fn test_execute_page_up() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk");
+        state.selection = Selection::cursor(Position::new(10, 0));
+        let action = execute_command(Command::PageUp, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_execute_page_down() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk");
+        state.selection = Selection::cursor(Position::new(1, 0));
+        let action = execute_command(Command::PageDown, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(10, 0));
+    }
+
+    #[test]
+    fn test_execute_move_word_forward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let action = execute_command(Command::MoveWordForward, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_execute_move_word_backward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::cursor(Position::new(0, 11));
+        let action = execute_command(Command::MoveWordBackward, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 5));
+    }
+
+    #[test]
+    fn test_execute_open_line_below() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.selection = Selection::cursor(Position::new(0, 3));
+        let action = execute_command(Command::OpenLineBelow, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.buffer.to_string(), "hello\n\nworld");
+        assert_eq!(state.selection.head, Position::new(1, 0));
+        assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_execute_open_line_above() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.selection = Selection::cursor(Position::new(1, 3));
+        let action = execute_command(Command::OpenLineAbove, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.buffer.to_string(), "hello\n\nworld");
+        assert_eq!(state.selection.head, Position::new(1, 0));
+        assert_eq!(state.mode, EditorMode::Insert);
     }
 }
