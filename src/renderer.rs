@@ -68,12 +68,25 @@ impl Renderer {
             return truncate_to_width(msg, self.width);
         }
 
-        let mode_str = match state.mode {
-            EditorMode::Normal => "NORMAL",
-            EditorMode::Insert => "INSERT",
-            EditorMode::Command => "COMMAND",
-            EditorMode::Search => "SEARCH",
+        let mut mode_str = match state.mode {
+            EditorMode::Normal => "NORMAL".to_string(),
+            EditorMode::Insert => "INSERT".to_string(),
+            EditorMode::Command => "COMMAND".to_string(),
+            EditorMode::Search => "SEARCH".to_string(),
         };
+
+        if state.mode == EditorMode::Insert && state.skk_enabled {
+            let skk_label = match state.skk_engine.state {
+                crate::skk::SkkState::Direct => "",
+                crate::skk::SkkState::Hiragana => "[あ]",
+                crate::skk::SkkState::Katakana => "[ア]",
+                crate::skk::SkkState::Converting => "[変換]",
+                crate::skk::SkkState::Registering => "[登録]",
+            };
+            if !skk_label.is_empty() {
+                mode_str = format!("{} {}", mode_str, skk_label);
+            }
+        }
 
         let file_name = state
             .file_path
