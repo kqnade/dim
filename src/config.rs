@@ -22,14 +22,14 @@ fn default_tab_width() -> usize {
 }
 
 fn default_skk_enabled() -> bool {
-    true
+    false
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             tab_width: 4,
-            skk_enabled: true,
+            skk_enabled: false,
             skk_system_dictionary_path: None,
             skk_user_dictionary_path: None,
         }
@@ -60,7 +60,7 @@ mod tests {
     fn test_config_default() {
         let config = Config::default();
         assert_eq!(config.tab_width, 4);
-        assert!(config.skk_enabled);
+        assert!(!config.skk_enabled);
         assert_eq!(config.skk_system_dictionary_path, None);
         assert_eq!(config.skk_user_dictionary_path, None);
     }
@@ -93,7 +93,7 @@ mod tests {
         fs::write(&path, "tab_width = 2\n").unwrap();
         let loaded = Config::load(&path).unwrap();
         assert_eq!(loaded.tab_width, 2);
-        assert!(loaded.skk_enabled);
+        assert!(!loaded.skk_enabled);
         assert_eq!(loaded.skk_system_dictionary_path, None);
         assert_eq!(loaded.skk_user_dictionary_path, None);
         fs::remove_file(&path).unwrap();

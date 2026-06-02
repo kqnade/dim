@@ -44,7 +44,7 @@ impl EditorState {
             yank_buffer: String::new(),
             search_query: String::new(),
             skk_engine: SkkEngine::new(),
-            skk_enabled: true,
+            skk_enabled: false,
             undo_manager: UndoManager::new(),
             current_transaction: Transaction::new(),
         }
