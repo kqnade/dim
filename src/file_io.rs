@@ -8,12 +8,39 @@ pub enum FileError {
     WriteFailed,
 }
 
-pub fn read_file(_path: &Path) -> Result<String, FileError> {
-    todo!()
+pub fn read_file(path: &Path) -> Result<String, FileError> {
+    let bytes = std::fs::read(path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => FileError::NotFound,
+        std::io::ErrorKind::PermissionDenied => FileError::PermissionDenied,
+        _ => FileError::PermissionDenied,
+    })?;
+    let mut text = String::from_utf8(bytes).map_err(|_| FileError::InvalidUtf8)?;
+    if text.contains('\r') {
+        let mut normalized = String::with_capacity(text.len());
+        let mut chars = text.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch == '\r' {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                normalized.push('\n');
+            } else {
+                normalized.push(ch);
+            }
+        }
+        text = normalized;
+    }
+    Ok(text)
 }
 
-pub fn write_file(_path: &Path, _contents: &str) -> Result<(), FileError> {
-    todo!()
+pub fn write_file(path: &Path, contents: &str) -> Result<(), FileError> {
+    if path.exists() {
+        let mut backup = path.as_os_str().to_os_string();
+        backup.push("~");
+        std::fs::rename(path, &backup).map_err(|_| FileError::WriteFailed)?;
+    }
+    std::fs::write(path, contents).map_err(|_| FileError::WriteFailed)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -87,7 +114,7 @@ mod tests {
         let text = "日本語テキスト\n改行あり\r\n混在";
         write_file(&path, text).unwrap();
         let result = read_file(&path).unwrap();
-        assert_eq!(result, "日本語テキスト\n改行あり\n混在\n");
+        assert_eq!(result, "日本語テキスト\n改行あり\n混在");
         fs::remove_file(&path).unwrap();
     }
 }

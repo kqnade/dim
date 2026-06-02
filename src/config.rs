@@ -4,6 +4,7 @@ use std::path::Path;
 pub enum ConfigError {
     Io(std::io::Error),
     Parse(toml::de::Error),
+    Serialize(toml::ser::Error),
 }
 
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -36,12 +37,16 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn load(_path: &Path) -> Result<Self, ConfigError> {
-        todo!()
+    pub fn load(path: &Path) -> Result<Self, ConfigError> {
+        let contents = std::fs::read_to_string(path).map_err(ConfigError::Io)?;
+        let config: Config = toml::from_str(&contents).map_err(ConfigError::Parse)?;
+        Ok(config)
     }
 
-    pub fn save(&self, _path: &Path) -> Result<(), ConfigError> {
-        todo!()
+    pub fn save(&self, path: &Path) -> Result<(), ConfigError> {
+        let contents = toml::to_string_pretty(self).map_err(ConfigError::Serialize)?;
+        std::fs::write(path, contents).map_err(ConfigError::Io)?;
+        Ok(())
     }
 }
 
