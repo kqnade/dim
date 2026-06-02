@@ -20,6 +20,8 @@ pub struct EditorState {
     pub message: Option<String>,
     pub dirty: bool,
     pub file_path: Option<PathBuf>,
+    pub command_buffer: String,
+    pub yank_buffer: String,
     undo_manager: UndoManager,
     current_transaction: Transaction,
 }
@@ -33,6 +35,8 @@ impl EditorState {
             message: None,
             dirty: false,
             file_path: None,
+            command_buffer: String::new(),
+            yank_buffer: String::new(),
             undo_manager: UndoManager::new(),
             current_transaction: Transaction::new(),
         }
@@ -44,6 +48,8 @@ impl EditorState {
         self.selection = Selection::cursor(Position::new(0, 0));
         self.file_path = Some(path.to_path_buf());
         self.dirty = false;
+        self.message = None;
+        self.command_buffer.clear();
         self.undo_manager = UndoManager::new();
         Ok(())
     }
@@ -91,10 +97,23 @@ impl EditorState {
         end
     }
 
+    pub fn yank_selection(&mut self) -> String {
+        let (start, end) = self.selection.sorted();
+        if start == end {
+            return String::new();
+        }
+        let yanked = self.buffer.delete_range(start, end);
+        self.buffer.insert(start, &yanked);
+        self.yank_buffer = yanked.clone();
+        self.selection = Selection::new(start, end);
+        yanked
+    }
+
     pub fn delete_selection(&mut self) -> String {
         let (start, end) = self.selection.sorted();
         let deleted = self.buffer.delete_range(start, end);
         self.selection = Selection::cursor(start);
+        self.yank_buffer = deleted.clone();
 
         if !deleted.is_empty() {
             let txn = Transaction::with_ops(vec![EditOp::Delete {
@@ -484,5 +503,33 @@ mod tests {
         assert_eq!(state.mode, EditorMode::Normal);
         state.set_mode(EditorMode::Insert);
         assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_new_buffers_empty() {
+        let state = EditorState::new();
+        assert_eq!(state.command_buffer, "");
+        assert_eq!(state.yank_buffer, "");
+    }
+
+    #[test]
+    fn test_yank_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
+        let yanked = state.yank_selection();
+        assert_eq!(yanked, "world");
+        assert_eq!(state.yank_buffer, "world");
+        assert_eq!(state.buffer.to_string(), "hello world");
+        assert_eq!(state.selection, Selection::new(Position::new(0, 6), Position::new(0, 11)));
+    }
+
+    #[test]
+    fn test_delete_sets_yank_buffer() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
+        state.delete_selection();
+        assert_eq!(state.yank_buffer, "world");
     }
 }
