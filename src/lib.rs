@@ -5,6 +5,7 @@ pub mod editor_state;
 pub mod file_io;
 pub mod input;
 pub mod position;
+pub mod renderer;
 pub mod selection;
 pub mod skk;
 pub mod terminal;
