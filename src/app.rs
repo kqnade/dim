@@ -1,6 +1,7 @@
-use crate::command::{Command, CommandRegistry, ParseCommandError};
+use crate::command::{Command, CommandRegistry};
+use crate::config::Config;
 use crate::editor_state::{EditorMode, EditorState};
-use crate::input::{InputEvent, KeyCode, Modifiers};
+use crate::input::{InputEvent, KeyCode};
 use crate::keymap::Keymap;
 use crate::renderer::Renderer;
 use crate::terminal::Terminal;
@@ -122,6 +123,7 @@ pub struct App {
     renderer: Renderer,
     registry: CommandRegistry,
     should_quit: bool,
+    config: Config,
 }
 
 impl App {
@@ -134,13 +136,24 @@ impl App {
                 state.message = Some(format!("Error opening file: {:?}", e));
             }
         }
+
+        let config = Self::load_config();
+
         Ok(Self {
             terminal,
             state,
             renderer: Renderer::new(cols as usize, rows as usize),
             registry: CommandRegistry::new(),
             should_quit: false,
+            config,
         })
+    }
+
+    fn load_config() -> Config {
+        let config_path = std::env::var("HOME")
+            .map(|h| std::path::PathBuf::from(h).join(".config/dim/config.toml"))
+            .unwrap_or_else(|_| std::path::PathBuf::from("dim.toml"));
+        Config::load(&config_path).unwrap_or_default()
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
