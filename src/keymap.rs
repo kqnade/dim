@@ -51,7 +51,7 @@ impl Keymap {
             InputEvent::Key { code: KeyCode::Char('r'), modifiers } if modifiers.ctrl => {
                 Some(Command::Redo)
             }
-            InputEvent::Paste(data) => Some(Command::PasteAfter),
+            InputEvent::Paste(_data) => Some(Command::PasteAfter),
             _ => None,
         }
     }

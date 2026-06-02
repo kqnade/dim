@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_parse_crossterm_char_text() {
-        use crossterm::event::{KeyCode as CKeyCode, KeyEvent, KeyModifiers};
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent};
         let cevent = crossterm::event::Event::Key(KeyEvent::from(CKeyCode::Char('a')));
         let ev = parse_crossterm_event(cevent).unwrap();
         assert_eq!(ev, InputEvent::Text("a".to_string()));
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_parse_crossterm_escape() {
-        use crossterm::event::{KeyCode as CKeyCode, KeyEvent, KeyModifiers};
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent};
         let cevent = crossterm::event::Event::Key(KeyEvent::from(CKeyCode::Esc));
         let ev = parse_crossterm_event(cevent).unwrap();
         assert_eq!(

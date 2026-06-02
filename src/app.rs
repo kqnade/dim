@@ -140,17 +140,20 @@ pub fn execute_command(cmd: Command, state: &mut EditorState) -> AppAction {
 use crate::position::Position;
 
 pub struct App {
+    #[allow(dead_code)]
     terminal: Terminal,
     state: EditorState,
     renderer: Renderer,
+    #[allow(dead_code)]
     registry: CommandRegistry,
     should_quit: bool,
+    #[allow(dead_code)]
     config: Config,
 }
 
 impl App {
     pub fn new(file_path: Option<std::path::PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut terminal = Terminal::new()?;
+        let terminal = Terminal::new()?;
         let (cols, rows) = terminal.size()?;
         let mut state = EditorState::new();
         if let Some(path) = file_path {
@@ -234,8 +237,6 @@ impl App {
     }
 
     fn handle_insert_mode(&mut self, input: &InputEvent) {
-        use crate::skk::SkkAction;
-
         match input {
             InputEvent::Key { code: KeyCode::Escape, .. } => {
                 self.state.set_mode(EditorMode::Normal);

@@ -27,6 +27,7 @@ pub struct EditorState {
     pub skk_engine: SkkEngine,
     pub skk_enabled: bool,
     undo_manager: UndoManager,
+    #[allow(dead_code)]
     current_transaction: Transaction,
 }
 
