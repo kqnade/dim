@@ -1,4 +1,5 @@
 use crate::editor_state::{EditorMode, EditorState};
+use crate::selection::Selection;
 
 pub struct Frame {
     pub rows: Vec<String>,
@@ -28,7 +29,15 @@ impl Renderer {
         for i in 0..text_height {
             let line_idx = self.scroll_offset + i;
             if let Some(line) = state.buffer.line(line_idx) {
-                let rendered = truncate_to_width(line, self.width, self.tab_width);
+                let line_len = line.chars().count();
+                let rendered = if let Some((sel_start, sel_end)) =
+                    selection_range_on_line(&state.selection, line_idx, line_len)
+                {
+                    let highlighted = highlight_line(line, sel_start, sel_end);
+                    truncate_ansi_to_width(&highlighted, self.width, self.tab_width)
+                } else {
+                    truncate_to_width(line, self.width, self.tab_width)
+                };
                 rows.push(rendered);
             } else {
                 rows.push(String::new());
@@ -136,6 +145,68 @@ impl Renderer {
             format!("{}{}{}", left, " ".repeat(pad), right)
         }
     }
+}
+
+fn selection_range_on_line(selection: &Selection, line_idx: usize, line_len: usize) -> Option<(usize, usize)> {
+    if selection.is_empty() {
+        return None;
+    }
+    let (start, end) = selection.sorted();
+    if start.line > line_idx || end.line < line_idx {
+        return None;
+    }
+    let sel_start = if start.line == line_idx { start.col } else { 0 };
+    let sel_end = if end.line == line_idx { end.col } else { line_len };
+    if sel_start >= sel_end {
+        return None;
+    }
+    Some((sel_start, sel_end))
+}
+
+fn highlight_line(line: &str, sel_start: usize, sel_end: usize) -> String {
+    let chars: Vec<char> = line.chars().collect();
+    let before: String = chars[..sel_start.min(chars.len())].iter().collect();
+    let selected: String = chars[sel_start.min(chars.len())..sel_end.min(chars.len())]
+        .iter()
+        .collect();
+    let after: String = chars[sel_end.min(chars.len())..].iter().collect();
+    format!("{}\x1b[7m{}\x1b[0m{}", before, selected, after)
+}
+
+fn truncate_ansi_to_width(s: &str, max_width: usize, tab_width: usize) -> String {
+    let mut result = String::new();
+    let mut width = 0;
+    let mut chars = s.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            result.push(ch);
+            while let Some(&next) = chars.peek() {
+                result.push(next);
+                chars.next();
+                if next.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+
+        let cw = if ch == '\t' {
+            let next_stop = (width / tab_width + 1) * tab_width;
+            next_stop - width
+        } else {
+            unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0)
+        };
+
+        if width + cw > max_width {
+            break;
+        }
+
+        result.push(ch);
+        width += cw;
+    }
+
+    result
 }
 
 fn truncate_to_width(s: &str, max_width: usize, tab_width: usize) -> String {
@@ -367,5 +438,116 @@ mod tests {
         let (col, row) = r.cursor_position(&state);
         assert_eq!(col, 8); // 4 + 'b'(1) + tab(3) = 8
         assert_eq!(row, 0);
+    }
+
+    #[test]
+    fn test_render_empty_selection_no_highlight() {
+        let r = Renderer::new(80, 2, 4);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::cursor(Position::new(0, 6));
+        let frame = r.render(&state);
+        assert_eq!(frame.rows[0], "hello world");
+    }
+
+    #[test]
+    fn test_render_single_line_selection_highlighted() {
+        let r = Renderer::new(80, 2, 4);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
+        let frame = r.render(&state);
+        assert!(frame.rows[0].contains("\x1b[7mworld\x1b[0m"));
+    }
+
+    #[test]
+    fn test_render_multi_line_selection_highlighted() {
+        let r = Renderer::new(80, 3, 4);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld\n!");
+        state.selection = Selection::new(Position::new(0, 2), Position::new(1, 3));
+        let frame = r.render(&state);
+        assert!(frame.rows[0].contains("\x1b[7mllo\x1b[0m"));
+        assert!(frame.rows[1].contains("\x1b[7mwor\x1b[0m"));
+    }
+
+    #[test]
+    fn test_render_full_line_selection() {
+        let r = Renderer::new(80, 3, 4);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(1, 5));
+        let frame = r.render(&state);
+        assert!(frame.rows[0].starts_with("\x1b[7mhello\x1b[0m"));
+        assert!(frame.rows[1].starts_with("\x1b[7mworld\x1b[0m"));
+    }
+
+    #[test]
+    fn test_render_selection_truncated_with_ansi() {
+        let r = Renderer::new(8, 2, 4);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(0, 11));
+        let frame = r.render(&state);
+        // Should truncate to 8 display columns while preserving ANSI codes
+        assert!(frame.rows[0].contains("\x1b[7m"));
+        // The visible portion should not exceed width
+        let visible_len = frame.rows[0]
+            .replace("\x1b[7m", "")
+            .replace("\x1b[0m", "")
+            .chars()
+            .count();
+        assert!(visible_len <= 8, "visible_len={}, row={}", visible_len, frame.rows[0]);
+    }
+
+    #[test]
+    fn test_truncate_ansi_to_width_skips_ansi() {
+        let input = "\x1b[7mhello\x1b[0m";
+        let result = truncate_ansi_to_width(input, 3, 4);
+        // Should include ANSI codes but only 3 visible chars
+        assert!(result.contains("\x1b[7m"));
+        assert!(result.contains("hel"));
+        assert!(!result.contains("lo"));
+    }
+
+    #[test]
+    fn test_render_backward_selection() {
+        let r = Renderer::new(80, 2, 4);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 11), Position::new(0, 6));
+        let frame = r.render(&state);
+        assert!(frame.rows[0].contains("\x1b[7mworld\x1b[0m"));
+    }
+
+    #[test]
+    fn test_selection_range_on_line_empty() {
+        let sel = Selection::cursor(Position::new(0, 5));
+        assert_eq!(selection_range_on_line(&sel, 0, 10), None);
+    }
+
+    #[test]
+    fn test_selection_range_on_line_no_overlap() {
+        let sel = Selection::new(Position::new(1, 0), Position::new(1, 5));
+        assert_eq!(selection_range_on_line(&sel, 0, 10), None);
+        assert_eq!(selection_range_on_line(&sel, 2, 10), None);
+    }
+
+    #[test]
+    fn test_selection_range_on_line_single_line() {
+        let sel = Selection::new(Position::new(0, 2), Position::new(0, 5));
+        assert_eq!(selection_range_on_line(&sel, 0, 10), Some((2, 5)));
+    }
+
+    #[test]
+    fn test_selection_range_on_line_spanning_start() {
+        let sel = Selection::new(Position::new(0, 3), Position::new(1, 2));
+        assert_eq!(selection_range_on_line(&sel, 0, 10), Some((3, 10)));
+    }
+
+    #[test]
+    fn test_selection_range_on_line_spanning_end() {
+        let sel = Selection::new(Position::new(0, 3), Position::new(1, 2));
+        assert_eq!(selection_range_on_line(&sel, 1, 10), Some((0, 2)));
     }
 }
