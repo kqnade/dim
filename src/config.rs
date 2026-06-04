@@ -15,6 +15,10 @@ pub struct Config {
     pub skk_enabled: bool,
     pub skk_system_dictionary_path: Option<String>,
     pub skk_user_dictionary_path: Option<String>,
+    #[serde(default = "default_show_line_numbers")]
+    pub show_line_numbers: bool,
+    #[serde(default = "default_show_relative_line_numbers")]
+    pub show_relative_line_numbers: bool,
 }
 
 fn default_tab_width() -> usize {
@@ -25,6 +29,14 @@ fn default_skk_enabled() -> bool {
     false
 }
 
+fn default_show_line_numbers() -> bool {
+    false
+}
+
+fn default_show_relative_line_numbers() -> bool {
+    false
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -32,6 +44,8 @@ impl Default for Config {
             skk_enabled: false,
             skk_system_dictionary_path: None,
             skk_user_dictionary_path: None,
+            show_line_numbers: false,
+            show_relative_line_numbers: false,
         }
     }
 }
@@ -63,6 +77,8 @@ mod tests {
         assert!(!config.skk_enabled);
         assert_eq!(config.skk_system_dictionary_path, None);
         assert_eq!(config.skk_user_dictionary_path, None);
+        assert!(!config.show_line_numbers);
+        assert!(!config.show_relative_line_numbers);
     }
 
     #[test]
@@ -73,6 +89,8 @@ mod tests {
             skk_enabled: false,
             skk_system_dictionary_path: Some("/usr/share/skk/SKK-JISYO.L".to_string()),
             skk_user_dictionary_path: Some("~/.skk-jisyo".to_string()),
+            show_line_numbers: true,
+            show_relative_line_numbers: true,
         };
         config.save(&path).unwrap();
         let loaded = Config::load(&path).unwrap();
@@ -96,6 +114,22 @@ mod tests {
         assert!(!loaded.skk_enabled);
         assert_eq!(loaded.skk_system_dictionary_path, None);
         assert_eq!(loaded.skk_user_dictionary_path, None);
+        assert!(!loaded.show_line_numbers);
+        assert!(!loaded.show_relative_line_numbers);
+        fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn test_config_load_line_numbers_from_toml() {
+        let path = temp_dir().join("dim_test_config_lines.toml");
+        fs::write(
+            &path,
+            "show_line_numbers = true\nshow_relative_line_numbers = true\n",
+        )
+        .unwrap();
+        let loaded = Config::load(&path).unwrap();
+        assert!(loaded.show_line_numbers);
+        assert!(loaded.show_relative_line_numbers);
         fs::remove_file(&path).unwrap();
     }
 }
