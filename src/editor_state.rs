@@ -1233,4 +1233,32 @@ mod tests {
         state.jump_matching_pair();
         assert_eq!(state.selection.head, Position::new(0, 8));
     }
+
+    #[test]
+    fn test_move_cursor_left_on_empty_buffer() {
+        let mut state = EditorState::new();
+        state.move_cursor_left();
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_move_cursor_right_on_empty_buffer() {
+        let mut state = EditorState::new();
+        state.move_cursor_right();
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_move_cursor_up_on_empty_buffer() {
+        let mut state = EditorState::new();
+        state.move_cursor_up();
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_move_cursor_down_on_empty_buffer() {
+        let mut state = EditorState::new();
+        state.move_cursor_down();
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
 }
