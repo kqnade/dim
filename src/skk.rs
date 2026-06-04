@@ -529,4 +529,36 @@ mod tests {
         let mut skk = SkkEngine::new();
         assert_eq!(skk.process_char(' '), SkkAction::Insert(" ".to_string()));
     }
+
+    #[test]
+    fn test_load_system_dictionary() {
+        let path = std::env::temp_dir().join("dim_test_system_dict.txt");
+        std::fs::write(&path, "にほんご /日本語/日本語の/\n").unwrap();
+        let mut skk = SkkEngine::new();
+        skk.load_system_dictionary(&path).unwrap();
+        assert_eq!(skk.dict.lookup("にほんご"), Some(&vec!["日本語".to_string(), "日本語の".to_string()]));
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn test_load_user_dictionary() {
+        let path = std::env::temp_dir().join("dim_test_user_dict.txt");
+        std::fs::write(&path, "てきすと /テキスト/文章/\n").unwrap();
+        let mut skk = SkkEngine::new();
+        skk.load_user_dictionary(&path).unwrap();
+        assert_eq!(skk.dict.lookup("てきすと"), Some(&vec!["テキスト".to_string(), "文章".to_string()]));
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn test_load_dictionary_merges_with_builtin() {
+        let path = std::env::temp_dir().join("dim_test_merge_dict.txt");
+        std::fs::write(&path, "にほんご /日本語/\n").unwrap();
+        let mut skk = SkkEngine::new();
+        // builtin has "にほんご" -> ["日本語"]
+        skk.load_user_dictionary(&path).unwrap();
+        // Should still work after merge
+        assert_eq!(skk.dict.lookup("にほんご"), Some(&vec!["日本語".to_string()]));
+        std::fs::remove_file(&path).unwrap();
+    }
 }
