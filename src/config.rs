@@ -30,7 +30,7 @@ fn default_skk_enabled() -> bool {
 }
 
 fn default_show_line_numbers() -> bool {
-    false
+    true
 }
 
 fn default_show_relative_line_numbers() -> bool {
@@ -44,7 +44,7 @@ impl Default for Config {
             skk_enabled: false,
             skk_system_dictionary_path: None,
             skk_user_dictionary_path: None,
-            show_line_numbers: false,
+            show_line_numbers: true,
             show_relative_line_numbers: false,
         }
     }
@@ -77,7 +77,7 @@ mod tests {
         assert!(!config.skk_enabled);
         assert_eq!(config.skk_system_dictionary_path, None);
         assert_eq!(config.skk_user_dictionary_path, None);
-        assert!(!config.show_line_numbers);
+        assert!(config.show_line_numbers); // opt-out: default on
         assert!(!config.show_relative_line_numbers);
     }
 
@@ -114,7 +114,7 @@ mod tests {
         assert!(!loaded.skk_enabled);
         assert_eq!(loaded.skk_system_dictionary_path, None);
         assert_eq!(loaded.skk_user_dictionary_path, None);
-        assert!(!loaded.show_line_numbers);
+        assert!(loaded.show_line_numbers); // opt-out: default on
         assert!(!loaded.show_relative_line_numbers);
         fs::remove_file(&path).unwrap();
     }
