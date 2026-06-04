@@ -211,6 +211,19 @@ impl App {
         let config = Self::load_config();
         state.skk_enabled = config.skk_enabled;
 
+        if let Some(ref path_str) = config.skk_system_dictionary_path {
+            let path = std::path::PathBuf::from(path_str);
+            if let Err(e) = state.skk_engine.load_system_dictionary(&path) {
+                state.message = Some(format!("SKK system dictionary load failed: {}", e));
+            }
+        }
+        if let Some(ref path_str) = config.skk_user_dictionary_path {
+            let path = std::path::PathBuf::from(path_str);
+            if let Err(e) = state.skk_engine.load_user_dictionary(&path) {
+                state.message = Some(format!("SKK user dictionary load failed: {}", e));
+            }
+        }
+
         Ok(Self {
             terminal,
             state,
