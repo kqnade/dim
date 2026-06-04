@@ -227,7 +227,7 @@ impl App {
         Ok(Self {
             terminal,
             state,
-            renderer: Renderer::new(cols as usize, rows as usize, config.tab_width),
+            renderer: Renderer::new(cols as usize, rows as usize, config.tab_width, config.show_line_numbers, config.show_relative_line_numbers),
             registry: CommandRegistry::new(),
             should_quit: false,
             keymap: Keymap::new(),
@@ -279,7 +279,7 @@ impl App {
         if let Some(input) = crate::input::parse_crossterm_event(event) {
             match input {
                 InputEvent::Resize { cols, rows } => {
-                    self.renderer = Renderer::new(cols as usize, rows as usize, self.config.tab_width);
+                    self.renderer = Renderer::new(cols as usize, rows as usize, self.config.tab_width, self.config.show_line_numbers, self.config.show_relative_line_numbers);
                 }
                 _ => match self.state.mode {
                     EditorMode::Insert => self.handle_insert_mode(&input),

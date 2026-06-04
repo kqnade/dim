@@ -10,38 +10,72 @@ pub struct Renderer {
     height: usize,
     scroll_offset: usize,
     tab_width: usize,
+    show_line_numbers: bool,
+    show_relative_line_numbers: bool,
 }
 
 impl Renderer {
-    pub fn new(width: usize, height: usize, tab_width: usize) -> Self {
+    pub fn new(
+        width: usize,
+        height: usize,
+        tab_width: usize,
+        show_line_numbers: bool,
+        show_relative_line_numbers: bool,
+    ) -> Self {
         Self {
             width,
             height,
             scroll_offset: 0,
             tab_width,
+            show_line_numbers,
+            show_relative_line_numbers,
         }
     }
 
     pub fn render(&self, state: &EditorState) -> Frame {
         let mut rows = Vec::with_capacity(self.height);
         let text_height = self.height.saturating_sub(1);
+        let gutter_width = if self.show_line_numbers {
+            self.compute_gutter_width(state)
+        } else {
+            0
+        };
+        let text_width = self.width.saturating_sub(gutter_width);
 
         for i in 0..text_height {
             let line_idx = self.scroll_offset + i;
+            let mut row = String::new();
+
+            if self.show_line_numbers {
+                let num = if self.show_relative_line_numbers && line_idx != state.selection.head.line
+                {
+                    let rel = if line_idx > state.selection.head.line {
+                        line_idx - state.selection.head.line
+                    } else {
+                        state.selection.head.line - line_idx
+                    };
+                    format!("{:>width$} ", rel, width = gutter_width.saturating_sub(1))
+                } else {
+                    let display_line = line_idx + 1;
+                    format!("{:>width$} ", display_line, width = gutter_width.saturating_sub(1))
+                };
+                row.push_str(&num);
+            }
+
             if let Some(line) = state.buffer.line(line_idx) {
                 let line_len = line.chars().count();
                 let rendered = if let Some((sel_start, sel_end)) =
                     selection_range_on_line(&state.selection, line_idx, line_len)
                 {
                     let highlighted = highlight_line(line, sel_start, sel_end);
-                    truncate_ansi_to_width(&highlighted, self.width, self.tab_width)
+                    truncate_ansi_to_width(&highlighted, text_width, self.tab_width)
                 } else {
-                    truncate_to_width(line, self.width, self.tab_width)
+                    truncate_to_width(line, text_width, self.tab_width)
                 };
-                rows.push(rendered);
-            } else {
-                rows.push(String::new());
+                row.push_str(&rendered);
             }
+
+            rows.push(row);
         }
 
         let status_row = match state.mode {
@@ -52,6 +86,12 @@ impl Renderer {
         rows.push(status_row);
 
         Frame { rows }
+    }
+
+    fn compute_gutter_width(&self, state: &EditorState) -> usize {
+        let max_line = state.buffer.line_count().max(1);
+        let digits = max_line.to_string().len();
+        digits + 1 // digits + space separator
     }
 
     /// Adjusts scroll offset so the cursor is visible on screen.
@@ -71,7 +111,13 @@ impl Renderer {
         let row = state.selection.head.line.saturating_sub(self.scroll_offset);
         let row = row.min(self.height.saturating_sub(2));
 
-        let mut col = 0;
+        let gutter_width = if self.show_line_numbers {
+            self.compute_gutter_width(state)
+        } else {
+            0
+        };
+
+        let mut col = gutter_width;
         if let Some(line) = state.buffer.line(state.selection.head.line) {
             let target_col = state.selection.head.col;
             let mut char_idx = 0;
@@ -89,7 +135,7 @@ impl Renderer {
                 char_idx += 1;
             }
         } else {
-            col = state.selection.head.col;
+            col = state.selection.head.col + gutter_width;
         }
         let col = col.min(self.width);
         (col, row)
@@ -238,14 +284,14 @@ mod tests {
 
     #[test]
     fn test_renderer_new() {
-        let r = Renderer::new(80, 24, 4);
+        let r = Renderer::new(80, 24, 4, false, false);
         let frame = r.render(&EditorState::new());
         assert_eq!(frame.rows.len(), 24);
     }
 
     #[test]
     fn test_render_empty_buffer() {
-        let r = Renderer::new(80, 3, 4);
+        let r = Renderer::new(80, 3, 4, false, false);
         let state = EditorState::new();
         let frame = r.render(&state);
         assert_eq!(frame.rows.len(), 3);
@@ -256,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_render_text_lines() {
-        let r = Renderer::new(80, 4, 4);
+        let r = Renderer::new(80, 4, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("hello\nworld\n!");
         let frame = r.render(&state);
@@ -267,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_render_truncates_long_lines() {
-        let r = Renderer::new(5, 3, 4);
+        let r = Renderer::new(5, 3, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("abcdefgh");
         let frame = r.render(&state);
@@ -276,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_render_status_line_no_name() {
-        let r = Renderer::new(40, 2, 4);
+        let r = Renderer::new(40, 2, 4, false, false);
         let state = EditorState::new();
         let frame = r.render(&state);
         let status = &frame.rows[1];
@@ -287,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_render_status_line_with_file_and_dirty() {
-        let r = Renderer::new(50, 2, 4);
+        let r = Renderer::new(50, 2, 4, false, false);
         let mut state = EditorState::new();
         state.file_path = Some(PathBuf::from("/tmp/test.txt"));
         state.dirty = true;
@@ -301,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_render_command_mode() {
-        let r = Renderer::new(40, 2, 4);
+        let r = Renderer::new(40, 2, 4, false, false);
         let mut state = EditorState::new();
         state.set_mode(EditorMode::Command);
         state.command_buffer = "write".to_string();
@@ -311,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_cursor_position() {
-        let r = Renderer::new(80, 24, 4);
+        let r = Renderer::new(80, 24, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("hello\nworld");
         state.selection = Selection::cursor(Position::new(1, 3));
@@ -322,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_cursor_position_clamped() {
-        let r = Renderer::new(5, 2, 4);
+        let r = Renderer::new(5, 2, 4, false, false);
         let mut state = EditorState::new();
         state.selection = Selection::cursor(Position::new(100, 100));
         let (col, row) = r.cursor_position(&state);
@@ -332,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_render_japanese_truncated() {
-        let r = Renderer::new(5, 2, 4);
+        let r = Renderer::new(5, 2, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("日本語");
         let frame = r.render(&state);
@@ -343,7 +389,7 @@ mod tests {
 
     #[test]
     fn test_render_status_line_shows_message() {
-        let r = Renderer::new(40, 2, 4);
+        let r = Renderer::new(40, 2, 4, false, false);
         let mut state = EditorState::new();
         state.message = Some("File saved".to_string());
         let frame = r.render(&state);
@@ -352,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_render_search_mode() {
-        let r = Renderer::new(40, 2, 4);
+        let r = Renderer::new(40, 2, 4, false, false);
         let mut state = EditorState::new();
         state.set_mode(EditorMode::Search);
         state.search_query = "hello".to_string();
@@ -362,7 +408,7 @@ mod tests {
 
     #[test]
     fn test_scroll_offset_renders_correct_lines() {
-        let mut r = Renderer::new(10, 3, 4);
+        let mut r = Renderer::new(10, 3, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
         r.scroll_offset = 2;
@@ -373,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_ensure_cursor_visible_scrolls_down() {
-        let mut r = Renderer::new(10, 3, 4);
+        let mut r = Renderer::new(10, 3, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
         state.selection = Selection::cursor(Position::new(3, 0));
@@ -383,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_ensure_cursor_visible_scrolls_up() {
-        let mut r = Renderer::new(10, 3, 4);
+        let mut r = Renderer::new(10, 3, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
         r.scroll_offset = 3;
@@ -394,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_cursor_position_with_scroll() {
-        let mut r = Renderer::new(10, 5, 4);
+        let mut r = Renderer::new(10, 5, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
         r.scroll_offset = 2;
@@ -406,7 +452,7 @@ mod tests {
 
     #[test]
     fn test_cursor_position_japanese() {
-        let r = Renderer::new(80, 24, 4);
+        let r = Renderer::new(80, 24, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("日本語");
         // Cursor after "日" (1 char)
@@ -424,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_cursor_position_with_tab() {
-        let r = Renderer::new(80, 24, 4);
+        let r = Renderer::new(80, 24, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("a\tb\tc");
         // Cursor after "a\t" (2 chars)
@@ -442,7 +488,7 @@ mod tests {
 
     #[test]
     fn test_render_empty_selection_no_highlight() {
-        let r = Renderer::new(80, 2, 4);
+        let r = Renderer::new(80, 2, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("hello world");
         state.selection = Selection::cursor(Position::new(0, 6));
@@ -452,7 +498,7 @@ mod tests {
 
     #[test]
     fn test_render_single_line_selection_highlighted() {
-        let r = Renderer::new(80, 2, 4);
+        let r = Renderer::new(80, 2, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("hello world");
         state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
@@ -462,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_render_multi_line_selection_highlighted() {
-        let r = Renderer::new(80, 3, 4);
+        let r = Renderer::new(80, 3, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("hello\nworld\n!");
         state.selection = Selection::new(Position::new(0, 2), Position::new(1, 3));
@@ -473,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_render_full_line_selection() {
-        let r = Renderer::new(80, 3, 4);
+        let r = Renderer::new(80, 3, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("hello\nworld");
         state.selection = Selection::new(Position::new(0, 0), Position::new(1, 5));
@@ -484,7 +530,7 @@ mod tests {
 
     #[test]
     fn test_render_selection_truncated_with_ansi() {
-        let r = Renderer::new(8, 2, 4);
+        let r = Renderer::new(8, 2, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("hello world");
         state.selection = Selection::new(Position::new(0, 0), Position::new(0, 11));
@@ -512,7 +558,7 @@ mod tests {
 
     #[test]
     fn test_render_backward_selection() {
-        let r = Renderer::new(80, 2, 4);
+        let r = Renderer::new(80, 2, 4, false, false);
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from_str("hello world");
         state.selection = Selection::new(Position::new(0, 11), Position::new(0, 6));
@@ -549,5 +595,73 @@ mod tests {
     fn test_selection_range_on_line_spanning_end() {
         let sel = Selection::new(Position::new(0, 3), Position::new(1, 2));
         assert_eq!(selection_range_on_line(&sel, 1, 10), Some((0, 2)));
+    }
+
+    // --- Line numbers tests ---
+
+    #[test]
+    fn test_render_with_line_numbers() {
+        let r = Renderer::new(20, 3, 4, true, false);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello\nworld");
+        let frame = r.render(&state);
+        assert!(frame.rows[0].starts_with("1 "));
+        assert!(frame.rows[0].contains("hello"));
+        assert!(frame.rows[1].starts_with("2 "));
+        assert!(frame.rows[1].contains("world"));
+    }
+
+    #[test]
+    fn test_render_without_line_numbers() {
+        let r = Renderer::new(20, 2, 4, false, false);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        let frame = r.render(&state);
+        assert!(!frame.rows[0].starts_with("1 "));
+        assert_eq!(frame.rows[0], "hello");
+    }
+
+    #[test]
+    fn test_render_relative_line_numbers() {
+        let r = Renderer::new(20, 4, 4, true, true);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("a\nb\nc");
+        state.selection = Selection::cursor(Position::new(1, 0));
+        let frame = r.render(&state);
+        // Line 0 is 1 away from cursor, should show relative
+        assert!(frame.rows[0].starts_with("1 "));
+        // Line 1 is cursor line, should show absolute
+        assert!(frame.rows[1].starts_with("2 "));
+        // Line 2 is 1 away from cursor, should show relative
+        assert!(frame.rows[2].starts_with("1 "));
+    }
+
+    #[test]
+    fn test_cursor_position_with_line_numbers() {
+        let r = Renderer::new(20, 2, 4, true, false);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let (col, row) = r.cursor_position(&state);
+        // Cursor at beginning of text, gutter is "1 " = 2 chars
+        assert_eq!(col, 2);
+        assert_eq!(row, 0);
+    }
+
+    #[test]
+    fn test_gutter_width_single_digit() {
+        let r = Renderer::new(20, 2, 4, true, false);
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("a\nb\nc");
+        assert_eq!(r.compute_gutter_width(&state), 2); // "3" + space
+    }
+
+    #[test]
+    fn test_gutter_width_double_digit() {
+        let r = Renderer::new(20, 2, 4, true, false);
+        let mut state = EditorState::new();
+        let lines: Vec<String> = (0..15).map(|i| format!("line{}", i)).collect();
+        state.buffer = LineBuffer::from_str(&lines.join("\n"));
+        assert_eq!(r.compute_gutter_width(&state), 3); // "15" + space
     }
 }
