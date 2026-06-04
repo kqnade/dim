@@ -118,6 +118,20 @@ impl SkkEngine {
         }
     }
 
+    pub fn load_system_dictionary(&mut self, path: &std::path::Path) -> std::io::Result<()> {
+        let mut dict = Dictionary::new();
+        dict.load_from_file(path)?;
+        self.dict.merge(&dict);
+        Ok(())
+    }
+
+    pub fn load_user_dictionary(&mut self, path: &std::path::Path) -> std::io::Result<()> {
+        let mut dict = Dictionary::new();
+        dict.load_from_file(path)?;
+        self.dict.merge(&dict);
+        Ok(())
+    }
+
     pub fn toggle(&mut self) -> SkkAction {
         match self.state {
             SkkState::Direct => {
