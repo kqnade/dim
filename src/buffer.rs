@@ -341,6 +341,98 @@ mod tests {
     }
 
     #[test]
+    fn test_insert_japanese_mid_ascii() {
+        let mut buf = LineBuffer::from("hello world");
+        let end = buf.insert(Position::new(0, 6), "日本語");
+        assert_eq!(end, Position::new(0, 9));
+        assert_eq!(buf.to_string(), "hello 日本語world");
+    }
+
+    #[test]
+    fn test_insert_japanese_into_japanese() {
+        let mut buf = LineBuffer::from("こんにちは");
+        let end = buf.insert(Position::new(0, 2), "世界");
+        assert_eq!(end, Position::new(0, 4));
+        assert_eq!(buf.to_string(), "こん世界にちは");
+    }
+
+    #[test]
+    fn test_insert_emoji() {
+        let mut buf = LineBuffer::from("hello");
+        let end = buf.insert(Position::new(0, 5), "🎉");
+        assert_eq!(end, Position::new(0, 6));
+        assert_eq!(buf.to_string(), "hello🎉");
+    }
+
+    #[test]
+    fn test_insert_newline_in_japanese() {
+        let mut buf = LineBuffer::from("こんにちは");
+        let end = buf.insert(Position::new(0, 2), "\n");
+        assert_eq!(end, Position::new(1, 0));
+        assert_eq!(buf.line_count(), 2);
+        assert_eq!(buf.line(0), Some("こん"));
+        assert_eq!(buf.line(1), Some("にちは"));
+    }
+
+    #[test]
+    fn test_delete_range_japanese() {
+        let mut buf = LineBuffer::from("こんにちは");
+        let deleted = buf.delete_range(Position::new(0, 1), Position::new(0, 3));
+        assert_eq!(deleted, "んに");
+        assert_eq!(buf.to_string(), "こちは");
+    }
+
+    #[test]
+    fn test_delete_range_japanese_ascii_mixed() {
+        let mut buf = LineBuffer::from("hello日本語");
+        let deleted = buf.delete_range(Position::new(0, 3), Position::new(0, 7));
+        assert_eq!(deleted, "lo日本");
+        assert_eq!(buf.to_string(), "hel語");
+    }
+
+    #[test]
+    fn test_delete_range_emoji() {
+        let mut buf = LineBuffer::from("a🎉b🎊c");
+        let deleted = buf.delete_range(Position::new(0, 1), Position::new(0, 3));
+        assert_eq!(deleted, "🎉b");
+        assert_eq!(buf.to_string(), "a🎊c");
+    }
+
+    #[test]
+    fn test_delete_range_empty_japanese() {
+        let mut buf = LineBuffer::from("日本語");
+        let deleted = buf.delete_range(Position::new(0, 1), Position::new(0, 1));
+        assert_eq!(deleted, "");
+        assert_eq!(buf.to_string(), "日本語");
+    }
+
+    #[test]
+    fn test_delete_range_multiline_japanese() {
+        let mut buf = LineBuffer::from("こんにちは\n世界");
+        let deleted = buf.delete_range(Position::new(0, 2), Position::new(1, 1));
+        assert_eq!(deleted, "にちは\n世");
+        assert_eq!(buf.to_string(), "こん界");
+    }
+
+    #[test]
+    fn test_insert_multiline_japanese() {
+        let mut buf = LineBuffer::from("start");
+        let end = buf.insert(Position::new(0, 2), "日本\n語");
+        assert_eq!(end, Position::new(1, 1));
+        assert_eq!(buf.line_count(), 2);
+        assert_eq!(buf.line(0), Some("st日本"));
+        assert_eq!(buf.line(1), Some("語art"));
+    }
+
+    #[test]
+    fn test_display_width_emoji() {
+        let buf = LineBuffer::from("a🎉");
+        assert_eq!(buf.display_width(Position::new(0, 0), 4), Some(0));
+        assert_eq!(buf.display_width(Position::new(0, 1), 4), Some(1));
+        assert_eq!(buf.display_width(Position::new(0, 2), 4), Some(3));
+    }
+
+    #[test]
     fn test_delete_range_single_line() {
         let mut buf = LineBuffer::from("hello world");
         let deleted = buf.delete_range(Position::new(0, 5), Position::new(0, 11));
