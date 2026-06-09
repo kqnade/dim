@@ -167,15 +167,31 @@ pub fn execute_command(cmd: Command, state: &mut EditorState) -> AppAction {
                 return AppAction::ShowMessage(format!("Pattern not found: {}", query));
             }
         }
-        Command::SearchNext => {
-            if !state.search_forward(&state.search_query.clone()) {
-                return AppAction::ShowMessage(format!("Pattern not found: {}", state.search_query));
+        Command::SearchPrevious => {
+            let query = state.search_query.clone();
+            if !query.is_empty() {
+                state.move_cursor_left();
+            }
+            if !state.search_backward(&query) {
+                return AppAction::ShowMessage(format!("Pattern not found: {}", query));
             }
         }
-        Command::SearchPrevious => {
-            if !state.search_backward(&state.search_query.clone()) {
-                return AppAction::ShowMessage(format!("Pattern not found: {}", state.search_query));
+        Command::ExtendSelectionLeft => state.extend_selection_left(),
+        Command::ExtendSelectionRight => state.extend_selection_right(),
+        Command::ExtendSelectionUp => state.extend_selection_up(),
+        Command::ExtendSelectionDown => state.extend_selection_down(),
+        Command::CollapseSelection => state.collapse_selection(),
+        Command::SearchNext => {
+            let query = state.search_query.clone();
+            if !query.is_empty() {
+                state.move_cursor_right();
             }
+            if !state.search_forward(&query) {
+                return AppAction::ShowMessage(format!("Pattern not found: {}", query));
+            }
+        }
+        Command::SkkToggle => {
+            state.skk_engine.toggle();
         }
         _ => {}
     }
@@ -728,5 +744,158 @@ mod tests {
         assert_eq!(state.buffer.to_string(), "hello\n\nworld");
         assert_eq!(state.selection.head, Position::new(1, 0));
         assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_execute_extend_selection_left() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("ab");
+        state.selection = Selection::cursor(Position::new(0, 1));
+        let action = execute_command(Command::ExtendSelectionLeft, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 0));
+        assert_eq!(state.selection.anchor, Position::new(0, 1));
+    }
+
+    #[test]
+    fn test_execute_extend_selection_right() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("ab");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let action = execute_command(Command::ExtendSelectionRight, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 1));
+        assert_eq!(state.selection.anchor, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_execute_extend_selection_up() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("a\nb");
+        state.selection = Selection::cursor(Position::new(1, 0));
+        let action = execute_command(Command::ExtendSelectionUp, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 0));
+        assert_eq!(state.selection.anchor, Position::new(1, 0));
+    }
+
+    #[test]
+    fn test_execute_extend_selection_down() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("a\nb");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let action = execute_command(Command::ExtendSelectionDown, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(1, 0));
+        assert_eq!(state.selection.anchor, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_execute_collapse_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
+        let action = execute_command(Command::CollapseSelection, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert!(state.selection.is_empty());
+        assert_eq!(state.selection.head, Position::new(0, 5));
+    }
+
+    #[test]
+    fn test_execute_change_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
+        let action = execute_command(Command::ChangeSelection, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.buffer.to_string(), "hello ");
+        assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_execute_change_selection_empty() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("abc");
+        state.selection = Selection::cursor(Position::new(0, 1));
+        let action = execute_command(Command::ChangeSelection, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.buffer.to_string(), "ac");
+        assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_execute_yank_selection() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
+        let action = execute_command(Command::YankSelection, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.buffer.to_string(), "hello world");
+        assert_eq!(state.yank_buffer, "world");
+    }
+
+    #[test]
+    fn test_execute_search_forward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.selection = Selection::cursor(Position::new(0, 1));
+        let action = execute_command(Command::SearchForward("hello".to_string()), &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(1, 0));
+    }
+
+    #[test]
+    fn test_execute_search_forward_not_found() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world");
+        let action = execute_command(Command::SearchForward("xyz".to_string()), &mut state);
+        assert_eq!(
+            action,
+            AppAction::ShowMessage("Pattern not found: xyz".to_string())
+        );
+    }
+
+    #[test]
+    fn test_execute_search_backward() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.selection = Selection::cursor(Position::new(1, 5));
+        let action = execute_command(Command::SearchBackward("hello".to_string()), &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(1, 0));
+    }
+
+    #[test]
+    fn test_execute_search_next() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.search_query = "hello".to_string();
+        let action = execute_command(Command::SearchNext, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(1, 0));
+    }
+
+    #[test]
+    fn test_execute_search_previous() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.selection = Selection::cursor(Position::new(1, 0));
+        state.search_query = "hello".to_string();
+        let action = execute_command(Command::SearchPrevious, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_execute_skk_toggle() {
+        let mut state = EditorState::new();
+        assert_eq!(state.skk_engine.state, crate::skk::SkkState::Direct);
+        let action = execute_command(Command::SkkToggle, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.skk_engine.state, crate::skk::SkkState::Hiragana);
+        let action = execute_command(Command::SkkToggle, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.skk_engine.state, crate::skk::SkkState::Direct);
     }
 }

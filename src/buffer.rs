@@ -393,4 +393,90 @@ mod tests {
         assert_eq!(buf.display_width(Position::new(0, 5), 4), None);
         assert_eq!(buf.display_width(Position::new(1, 0), 4), None);
     }
+
+    #[test]
+    fn test_insert_out_of_range() {
+        let mut buf = LineBuffer::from_str("hello");
+        let end = buf.insert(Position::new(100, 0), "world");
+        assert_eq!(end, Position::new(100, 0));
+        assert_eq!(buf.to_string(), "hello");
+    }
+
+    #[test]
+    fn test_apply_transaction_insert() {
+        let mut buf = LineBuffer::from_str("abc");
+        let txn = Transaction::with_ops(vec![EditOp::Insert {
+            pos: Position::new(0, 1),
+            text: "XY".to_string(),
+        }]);
+        buf.apply_transaction(&txn);
+        assert_eq!(buf.to_string(), "aXYbc");
+    }
+
+    #[test]
+    fn test_apply_transaction_delete() {
+        let mut buf = LineBuffer::from_str("abcde");
+        let txn = Transaction::with_ops(vec![EditOp::Delete {
+            pos: Position::new(0, 1),
+            text: "bcd".to_string(),
+        }]);
+        buf.apply_transaction(&txn);
+        assert_eq!(buf.to_string(), "ae");
+    }
+
+    #[test]
+    fn test_apply_transaction_multiline() {
+        let mut buf = LineBuffer::from_str("start");
+        let txn = Transaction::with_ops(vec![EditOp::Insert {
+            pos: Position::new(0, 2),
+            text: "x\ny".to_string(),
+        }]);
+        buf.apply_transaction(&txn);
+        assert_eq!(buf.to_string(), "stx\nyart");
+    }
+
+    #[test]
+    fn test_apply_transaction_inverse_insert() {
+        let mut buf = LineBuffer::from_str("aXYbc");
+        let txn = Transaction::with_ops(vec![EditOp::Insert {
+            pos: Position::new(0, 1),
+            text: "XY".to_string(),
+        }]);
+        buf.apply_transaction_inverse(&txn);
+        assert_eq!(buf.to_string(), "abc");
+    }
+
+    #[test]
+    fn test_apply_transaction_inverse_delete() {
+        let mut buf = LineBuffer::from_str("ae");
+        let txn = Transaction::with_ops(vec![EditOp::Delete {
+            pos: Position::new(0, 1),
+            text: "bcd".to_string(),
+        }]);
+        buf.apply_transaction_inverse(&txn);
+        assert_eq!(buf.to_string(), "abcde");
+    }
+
+    #[test]
+    fn test_apply_transaction_inverse_multiline() {
+        let mut buf = LineBuffer::from_str("stx\nyart");
+        let txn = Transaction::with_ops(vec![EditOp::Insert {
+            pos: Position::new(0, 2),
+            text: "x\ny".to_string(),
+        }]);
+        buf.apply_transaction_inverse(&txn);
+        assert_eq!(buf.to_string(), "start");
+    }
+
+    #[test]
+    fn test_insert_end_pos_single_line() {
+        let end = insert_end_pos(Position::new(0, 2), "abc");
+        assert_eq!(end, Position::new(0, 5));
+    }
+
+    #[test]
+    fn test_insert_end_pos_multiline() {
+        let end = insert_end_pos(Position::new(0, 2), "x\ny\nz");
+        assert_eq!(end, Position::new(2, 1));
+    }
 }

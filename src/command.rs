@@ -90,6 +90,7 @@ impl CommandRegistry {
                 ("force-quit", Command::ForceQuit),
                 ("q!", Command::ForceQuit),
                 ("open", Command::OpenFile(String::new())),
+                ("save-as", Command::SaveFileAs(String::new())),
                 ("undo", Command::Undo),
                 ("redo", Command::Redo),
             ],
@@ -247,5 +248,25 @@ mod tests {
     fn test_registry_parse_redo() {
         let reg = CommandRegistry::new();
         assert_eq!(reg.parse("redo"), Ok(Command::Redo));
+    }
+
+    #[test]
+    fn test_registry_parse_save_as() {
+        let reg = CommandRegistry::new();
+        assert_eq!(
+            reg.parse("save-as new.txt"),
+            Ok(Command::SaveFileAs("new.txt".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_registry_parse_save_as_missing_arg() {
+        let reg = CommandRegistry::new();
+        assert_eq!(
+            reg.parse("save-as"),
+            Err(ParseCommandError::MissingArgument(
+                "save-as requires a file path".to_string()
+            ))
+        );
     }
 }
