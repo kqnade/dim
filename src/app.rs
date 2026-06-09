@@ -218,11 +218,10 @@ impl App {
         let terminal = Terminal::new()?;
         let (cols, rows) = terminal.size()?;
         let mut state = EditorState::new();
-        if let Some(path) = file_path {
-            if let Err(e) = state.open_file(&path) {
+        if let Some(path) = file_path
+            && let Err(e) = state.open_file(&path) {
                 state.message = Some(format!("Error opening file: {:?}", e));
             }
-        }
 
         let config = Self::load_config();
         state.skk_enabled = config.skk_enabled;

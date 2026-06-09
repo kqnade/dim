@@ -372,8 +372,8 @@ impl EditorState {
             let line = start.line;
             let col = start.col;
             let line_len = self.buffer.line_len(line).unwrap_or(0);
-            if col < line_len {
-                if let Some(text) = self.buffer.line(line) {
+            if col < line_len
+                && let Some(text) = self.buffer.line(line) {
                     let ch = text.chars().nth(col).unwrap_or('\0');
                     let toggled = if ch.is_uppercase() {
                         ch.to_lowercase().to_string()
@@ -384,7 +384,6 @@ impl EditorState {
                     self.delete_selection();
                     self.insert_at_cursor(&toggled);
                 }
-            }
         } else {
             // Toggle case of selection
             let selected = self.buffer.delete_range(start, end);
@@ -428,8 +427,8 @@ impl EditorState {
 
         let mut txn = Transaction::new();
         for line_idx in start_line..=end_line {
-            if let Some(line) = self.buffer.line(line_idx) {
-                if line.starts_with('\t') {
+            if let Some(line) = self.buffer.line(line_idx)
+                && line.starts_with('\t') {
                     let pos = Position::new(line_idx, 0);
                     self.selection = Selection::new(pos, Position::new(line_idx, 1));
                     let deleted = self.delete_selection();
@@ -438,7 +437,6 @@ impl EditorState {
                         text: deleted,
                     });
                 }
-            }
         }
 
         self.dirty = true;
@@ -541,22 +539,20 @@ impl EditorState {
         let start_col = self.selection.head.col;
 
         // Search current line after cursor
-        if let Some(line) = self.buffer.line(start_line) {
-            if let Some(idx) = line[start_col..].find(query) {
+        if let Some(line) = self.buffer.line(start_line)
+            && let Some(idx) = line[start_col..].find(query) {
                 let found_col = start_col + idx;
                 self.selection = Selection::cursor(Position::new(start_line, found_col));
                 return true;
             }
-        }
 
         // Search subsequent lines
         for line_idx in (start_line + 1)..self.buffer.line_count() {
-            if let Some(line) = self.buffer.line(line_idx) {
-                if let Some(idx) = line.find(query) {
+            if let Some(line) = self.buffer.line(line_idx)
+                && let Some(idx) = line.find(query) {
                     self.selection = Selection::cursor(Position::new(line_idx, idx));
                     return true;
                 }
-            }
         }
 
         false
@@ -580,12 +576,11 @@ impl EditorState {
 
         // Search preceding lines
         for line_idx in (0..start_line).rev() {
-            if let Some(line) = self.buffer.line(line_idx) {
-                if let Some(idx) = line.rfind(query) {
+            if let Some(line) = self.buffer.line(line_idx)
+                && let Some(idx) = line.rfind(query) {
                     self.selection = Selection::cursor(Position::new(line_idx, idx));
                     return true;
                 }
-            }
         }
 
         false

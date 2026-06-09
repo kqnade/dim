@@ -49,11 +49,7 @@ impl Renderer {
             if self.show_line_numbers {
                 let num = if self.show_relative_line_numbers && line_idx != state.selection.head.line
                 {
-                    let rel = if line_idx > state.selection.head.line {
-                        line_idx - state.selection.head.line
-                    } else {
-                        state.selection.head.line - line_idx
-                    };
+                    let rel = line_idx.abs_diff(state.selection.head.line);
                     format!("{:>width$} ", rel, width = gutter_width.saturating_sub(1))
                 } else {
                     let display_line = line_idx + 1;
@@ -120,8 +116,7 @@ impl Renderer {
         let mut col = gutter_width;
         if let Some(line) = state.buffer.line(state.selection.head.line) {
             let target_col = state.selection.head.col;
-            let mut char_idx = 0;
-            for ch in line.chars() {
+            for (char_idx, ch) in line.chars().enumerate() {
                 if char_idx >= target_col {
                     break;
                 }
@@ -132,7 +127,6 @@ impl Renderer {
                     unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0)
                 };
                 col += cw;
-                char_idx += 1;
             }
         } else {
             col = state.selection.head.col + gutter_width;
@@ -663,5 +657,88 @@ mod tests {
         let lines: Vec<String> = (0..15).map(|i| format!("line{}", i)).collect();
         state.buffer = LineBuffer::from_str(&lines.join("\n"));
         assert_eq!(r.compute_gutter_width(&state), 3); // "15" + space
+    }
+
+    #[test]
+    fn test_render_status_line_skk_hiragana() {
+        let r = Renderer::new(40, 2, 4, false, false);
+        let mut state = EditorState::new();
+        state.set_mode(EditorMode::Insert);
+        state.skk_enabled = true;
+        state.skk_engine.state = crate::skk::SkkState::Hiragana;
+        let frame = r.render(&state);
+        let status = &frame.rows[1];
+        assert!(status.contains("INSERT"));
+        assert!(status.contains("[あ]"));
+    }
+
+    #[test]
+    fn test_render_status_line_skk_katakana() {
+        let r = Renderer::new(40, 2, 4, false, false);
+        let mut state = EditorState::new();
+        state.set_mode(EditorMode::Insert);
+        state.skk_enabled = true;
+        state.skk_engine.state = crate::skk::SkkState::Katakana;
+        let frame = r.render(&state);
+        let status = &frame.rows[1];
+        assert!(status.contains("INSERT"));
+        assert!(status.contains("[ア]"));
+    }
+
+    #[test]
+    fn test_render_status_line_skk_converting() {
+        let r = Renderer::new(40, 2, 4, false, false);
+        let mut state = EditorState::new();
+        state.set_mode(EditorMode::Insert);
+        state.skk_enabled = true;
+        state.skk_engine.state = crate::skk::SkkState::Converting;
+        let frame = r.render(&state);
+        let status = &frame.rows[1];
+        assert!(status.contains("INSERT"));
+        assert!(status.contains("[変換]"));
+    }
+
+    #[test]
+    fn test_render_status_line_skk_direct_no_label() {
+        let r = Renderer::new(40, 2, 4, false, false);
+        let mut state = EditorState::new();
+        state.set_mode(EditorMode::Insert);
+        state.skk_enabled = true;
+        state.skk_engine.state = crate::skk::SkkState::Direct;
+        let frame = r.render(&state);
+        let status = &frame.rows[1];
+        assert!(status.contains("INSERT"));
+        // Should not contain any SKK labels
+        assert!(!status.contains("[あ]"));
+        assert!(!status.contains("[ア]"));
+        assert!(!status.contains("[変換]"));
+        assert!(!status.contains("[登録]"));
+    }
+
+    #[test]
+    fn test_render_status_line_skk_disabled() {
+        let r = Renderer::new(40, 2, 4, false, false);
+        let mut state = EditorState::new();
+        state.set_mode(EditorMode::Insert);
+        state.skk_enabled = false;
+        let frame = r.render(&state);
+        let status = &frame.rows[1];
+        assert!(status.contains("INSERT"));
+        assert!(!status.contains("[あ]"));
+        assert!(!status.contains("[ア]"));
+        assert!(!status.contains("[変換]"));
+        assert!(!status.contains("[登録]"));
+    }
+
+    #[test]
+    fn test_render_status_line_truncated_when_too_long() {
+        let r = Renderer::new(10, 2, 4, false, false);
+        let mut state = EditorState::new();
+        state.file_path = Some(std::path::PathBuf::from("/very/long/path/name.txt"));
+        state.dirty = true;
+        let frame = r.render(&state);
+        let status = &frame.rows[1];
+        // Should be truncated to fit within 10 columns
+        assert!(status.len() <= 10 || !status.contains("name.txt"));
     }
 }

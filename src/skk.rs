@@ -58,8 +58,7 @@ impl Dictionary {
             if let Some(sep_idx) = line.find(" /") {
                 let reading = &line[..sep_idx];
                 let candidates_part = &line[sep_idx + 2..]; // Skip " /"
-                if candidates_part.ends_with("/") {
-                    let candidates_str = &candidates_part[..candidates_part.len() - 1];
+                if let Some(candidates_str) = candidates_part.strip_suffix("/") {
                     let candidates: Vec<String> = candidates_str
                         .split('/')
                         .map(|s| s.to_string())
@@ -301,13 +300,12 @@ impl SkkEngine {
     }
 
     fn start_conversion(&mut self) -> SkkAction {
-        if !self.preedit.is_empty() {
-            if let Some(kana) = try_convert_romaji(&self.preedit) {
+        if !self.preedit.is_empty()
+            && let Some(kana) = try_convert_romaji(&self.preedit) {
                 self.preedit.clear();
                 self.reading.push_str(&kana);
                 return SkkAction::Insert(kana);
             }
-        }
 
         if let Some(candidates) = self.dict.lookup(&self.reading) {
             self.candidates = candidates.clone();

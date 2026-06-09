@@ -149,8 +149,8 @@ impl Keymap {
                 // Handle double-tap and multi-char sequences
                 match ch {
                     'q' | 'g' => {
-                        if let Some(pending) = self.pending_key {
-                            if pending == ch {
+                        if let Some(pending) = self.pending_key
+                            && pending == ch {
                                 // Double-tap detected
                                 self.pending_key = None;
                                 return match ch {
@@ -159,7 +159,6 @@ impl Keymap {
                                     _ => None,
                                 };
                             }
-                        }
                         // Set as pending and consume
                         self.pending_key = Some(ch);
                         None
