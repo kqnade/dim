@@ -383,6 +383,14 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_range_reversed() {
+        let mut buf = LineBuffer::from("abcdef");
+        let deleted = buf.delete_range(Position::new(0, 4), Position::new(0, 2));
+        assert_eq!(deleted, "cd");
+        assert_eq!(buf.to_string(), "abef");
+    }
+
+    #[test]
     fn test_display_width_ascii() {
         let buf = LineBuffer::from("abc");
         assert_eq!(buf.display_width(Position::new(0, 0), 4), Some(0));

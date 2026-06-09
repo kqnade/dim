@@ -1008,6 +1008,15 @@ mod tests {
     }
 
     #[test]
+    fn test_search_forward_empty_query() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello world");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let found = state.search_forward("");
+        assert!(!found);
+    }
+
+    #[test]
     fn test_search_backward() {
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from("hello world\nhello dim");
@@ -1025,6 +1034,24 @@ mod tests {
         let found = state.search_backward("hello");
         assert!(found);
         assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_search_backward_not_found() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello world");
+        state.selection = Selection::cursor(Position::new(0, 5));
+        let found = state.search_backward("xyz");
+        assert!(!found);
+    }
+
+    #[test]
+    fn test_search_backward_empty_query() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello world");
+        state.selection = Selection::cursor(Position::new(0, 5));
+        let found = state.search_backward("");
+        assert!(!found);
     }
 
     #[test]
