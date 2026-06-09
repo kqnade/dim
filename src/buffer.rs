@@ -5,6 +5,12 @@ pub struct LineBuffer {
     lines: Vec<String>,
 }
 
+impl Default for LineBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LineBuffer {
     pub fn new() -> Self {
         Self {
@@ -182,6 +188,14 @@ fn char_display_width(ch: char, tab_width: usize, current_width: usize) -> usize
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_default_equals_new() {
+        let a = LineBuffer::default();
+        let b = LineBuffer::new();
+        assert_eq!(a.line_count(), b.line_count());
+        assert_eq!(a.line(0), b.line(0));
+    }
 
     #[test]
     fn test_new_empty() {

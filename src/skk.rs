@@ -15,6 +15,12 @@ pub struct Dictionary {
     entries: HashMap<String, Vec<String>>,
 }
 
+impl Default for Dictionary {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Dictionary {
     pub fn new() -> Self {
         Self {
@@ -104,6 +110,12 @@ pub struct SkkEngine {
     pub candidates: Vec<String>,
     pub candidate_index: usize,
     pub dict: Dictionary,
+}
+
+impl Default for SkkEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SkkEngine {
@@ -373,6 +385,22 @@ fn romaji_table() -> HashMap<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_dictionary_default_equals_new() {
+        let a = Dictionary::default();
+        let b = Dictionary::new();
+        assert_eq!(a.lookup("test"), b.lookup("test"));
+    }
+
+    #[test]
+    fn test_skk_engine_default_equals_new() {
+        let a = SkkEngine::default();
+        let b = SkkEngine::new();
+        assert_eq!(a.state, b.state);
+        assert_eq!(a.preedit, b.preedit);
+        assert_eq!(a.reading, b.reading);
+    }
 
     #[test]
     fn test_dictionary_lookup() {

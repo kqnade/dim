@@ -242,4 +242,81 @@ mod tests {
         });
         assert_eq!(parse_crossterm_event(cevent), None);
     }
+
+    #[test]
+    fn test_modifiers_shift() {
+        let m = Modifiers::shift();
+        assert!(m.shift);
+        assert!(!m.ctrl);
+        assert!(!m.alt);
+        assert!(!m.super_key);
+    }
+
+    #[test]
+    fn test_parse_crossterm_shift_char_becomes_text() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent, KeyModifiers};
+        let cevent = crossterm::event::Event::Key(KeyEvent {
+            code: CKeyCode::Char('A'),
+            modifiers: KeyModifiers::SHIFT,
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        });
+        let ev = parse_crossterm_event(cevent).unwrap();
+        // Shift+Char without ctrl/alt/super is treated as text input
+        assert_eq!(ev, InputEvent::Text("A".to_string()));
+    }
+
+    #[test]
+    fn test_parse_crossterm_alt_char_key() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent, KeyModifiers};
+        let cevent = crossterm::event::Event::Key(KeyEvent {
+            code: CKeyCode::Char('x'),
+            modifiers: KeyModifiers::ALT,
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        });
+        let ev = parse_crossterm_event(cevent).unwrap();
+        assert_eq!(
+            ev,
+            InputEvent::Key {
+                code: KeyCode::Char('x'),
+                modifiers: Modifiers { alt: true, ..Default::default() },
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_crossterm_f_key() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent};
+        let cevent = crossterm::event::Event::Key(KeyEvent::from(CKeyCode::F(5)));
+        let ev = parse_crossterm_event(cevent).unwrap();
+        assert_eq!(
+            ev,
+            InputEvent::Key {
+                code: KeyCode::F(5),
+                modifiers: Modifiers::none(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_crossterm_null_key() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent};
+        let cevent = crossterm::event::Event::Key(KeyEvent::from(CKeyCode::Null));
+        let ev = parse_crossterm_event(cevent).unwrap();
+        assert_eq!(
+            ev,
+            InputEvent::Key {
+                code: KeyCode::Null,
+                modifiers: Modifiers::none(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_crossterm_unknown_key_ignored() {
+        use crossterm::event::{KeyCode as CKeyCode, KeyEvent};
+        let cevent = crossterm::event::Event::Key(KeyEvent::from(CKeyCode::CapsLock));
+        assert_eq!(parse_crossterm_event(cevent), None);
+    }
 }

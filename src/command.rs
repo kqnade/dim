@@ -78,6 +78,12 @@ pub struct CommandRegistry {
     commands: Vec<(&'static str, Command)>,
 }
 
+impl Default for CommandRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CommandRegistry {
     pub fn new() -> Self {
         Self {
@@ -134,6 +140,14 @@ impl CommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_registry_default_equals_new() {
+        let a = CommandRegistry::default();
+        let b = CommandRegistry::new();
+        assert_eq!(a.parse("write"), b.parse("write"));
+        assert_eq!(a.parse("quit"), b.parse("quit"));
+    }
 
     #[test]
     fn test_command_variants_exist() {

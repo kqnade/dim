@@ -31,6 +31,12 @@ pub struct EditorState {
     current_transaction: Transaction,
 }
 
+impl Default for EditorState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EditorState {
     pub fn new() -> Self {
         Self {
@@ -603,6 +609,16 @@ mod tests {
     use super::*;
     use std::env::temp_dir;
     use std::fs;
+
+    #[test]
+    fn test_editor_state_default_equals_new() {
+        let a = EditorState::default();
+        let b = EditorState::new();
+        assert_eq!(a.buffer.to_string(), b.buffer.to_string());
+        assert_eq!(a.selection, b.selection);
+        assert_eq!(a.mode, b.mode);
+        assert_eq!(a.dirty, b.dirty);
+    }
 
     #[test]
     fn test_editor_state_new() {

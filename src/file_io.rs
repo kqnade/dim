@@ -117,4 +117,13 @@ mod tests {
         assert_eq!(result, "日本語テキスト\n改行あり\n混在");
         fs::remove_file(&path).unwrap();
     }
+
+    #[test]
+    fn test_read_file_invalid_utf8() {
+        let path = temp_dir().join("dim_test_invalid_utf8.txt");
+        fs::write(&path, vec![0x80, 0x81, 0x82]).unwrap();
+        let result = read_file(&path);
+        assert_eq!(result, Err(FileError::InvalidUtf8));
+        fs::remove_file(&path).unwrap();
+    }
 }
