@@ -252,27 +252,30 @@ impl EditorState {
     pub fn move_word_forward(&mut self) {
         let head = self.selection.head;
         if let Some(line) = self.buffer.line(head.line) {
-            let after = &line[head.col..];
-            if let Some(pos) = after.find(' ') {
-                let new_col = head.col + pos + 1;
-                self.selection = Selection::cursor(Position::new(head.line, new_col));
-            } else {
-                let len = self.buffer.line_len(head.line).unwrap_or(0);
-                self.selection = Selection::cursor(Position::new(head.line, len));
+            let chars: Vec<char> = line.chars().collect();
+            let mut idx = head.col.min(chars.len());
+            while idx < chars.len() && !chars[idx].is_whitespace() {
+                idx += 1;
             }
+            while idx < chars.len() && chars[idx].is_whitespace() {
+                idx += 1;
+            }
+            self.selection = Selection::cursor(Position::new(head.line, idx));
         }
     }
 
     pub fn move_word_backward(&mut self) {
         let head = self.selection.head;
         if let Some(line) = self.buffer.line(head.line) {
-            let before = &line[..head.col];
-            if let Some(pos) = before.rfind(' ') {
-                let new_col = pos;
-                self.selection = Selection::cursor(Position::new(head.line, new_col));
-            } else {
-                self.selection = Selection::cursor(Position::new(head.line, 0));
+            let chars: Vec<char> = line.chars().collect();
+            let mut idx = head.col.min(chars.len());
+            while idx > 0 && chars[idx - 1].is_whitespace() {
+                idx -= 1;
             }
+            while idx > 0 && !chars[idx - 1].is_whitespace() {
+                idx -= 1;
+            }
+            self.selection = Selection::cursor(Position::new(head.line, idx));
         }
     }
 
@@ -1119,7 +1122,142 @@ mod tests {
         state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::cursor(Position::new(0, 11));
         state.move_word_backward();
-        assert_eq!(state.selection.head, Position::new(0, 5));
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_forward_japanese() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("こんにちは 世界");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_backward_japanese() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("こんにちは 世界");
+        state.selection = Selection::cursor(Position::new(0, 8));
+        state.move_word_backward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_forward_no_space_japanese() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("こんにちは世界");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 7));
+    }
+
+    #[test]
+    fn test_move_word_forward_tab() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\tworld");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_backward_tab() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\tworld");
+        state.selection = Selection::cursor(Position::new(0, 11));
+        state.move_word_backward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_forward_multiple_spaces() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello   world");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 8));
+    }
+
+    #[test]
+    fn test_move_word_backward_multiple_spaces() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello   world");
+        state.selection = Selection::cursor(Position::new(0, 13));
+        state.move_word_backward();
+        assert_eq!(state.selection.head, Position::new(0, 8));
+    }
+
+    #[test]
+    fn test_move_word_forward_mixed() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello 世界");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_backward_mixed() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello 世界");
+        state.selection = Selection::cursor(Position::new(0, 8));
+        state.move_word_backward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_forward_from_middle() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello world");
+        state.selection = Selection::cursor(Position::new(0, 3));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_forward_from_whitespace() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello world");
+        state.selection = Selection::cursor(Position::new(0, 5));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 6));
+    }
+
+    #[test]
+    fn test_move_word_backward_from_whitespace() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello world");
+        state.selection = Selection::cursor(Position::new(0, 5));
+        state.move_word_backward();
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_move_word_forward_empty_line() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_move_word_backward_empty_line() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_backward();
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_move_word_forward_punctuation() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello, world");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        state.move_word_forward();
+        assert_eq!(state.selection.head, Position::new(0, 7));
     }
 
     #[test]

@@ -718,7 +718,7 @@ mod tests {
         state.selection = Selection::cursor(Position::new(0, 11));
         let action = execute_command(Command::MoveWordBackward, &mut state);
         assert_eq!(action, AppAction::Continue);
-        assert_eq!(state.selection.head, Position::new(0, 5));
+        assert_eq!(state.selection.head, Position::new(0, 6));
     }
 
     #[test]
