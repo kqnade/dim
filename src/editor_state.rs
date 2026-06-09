@@ -405,6 +405,11 @@ impl EditorState {
             self.buffer.insert(start, &toggled);
             self.selection = Selection::new(start, Position::new(start.line, start.col + toggled.len()));
             self.dirty = true;
+            let txn = Transaction::with_ops(vec![
+                EditOp::Delete { pos: start, text: selected },
+                EditOp::Insert { pos: start, text: toggled },
+            ]);
+            self.push_transaction(txn);
         }
     }
 
@@ -1217,6 +1222,17 @@ mod tests {
         state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
         state.toggle_case();
         assert_eq!(state.buffer.to_string(), "hELLO World");
+    }
+
+    #[test]
+    fn test_toggle_case_selection_undo() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("Hello World");
+        state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
+        state.toggle_case();
+        assert!(state.can_undo());
+        state.undo();
+        assert_eq!(state.buffer.to_string(), "Hello World");
     }
 
     #[test]
