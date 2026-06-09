@@ -298,7 +298,7 @@ mod tests {
     fn test_render_text_lines() {
         let r = Renderer::new(80, 4, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld\n!");
+        state.buffer = LineBuffer::from("hello\nworld\n!");
         let frame = r.render(&state);
         assert_eq!(frame.rows[0], "hello");
         assert_eq!(frame.rows[1], "world");
@@ -309,7 +309,7 @@ mod tests {
     fn test_render_truncates_long_lines() {
         let r = Renderer::new(5, 3, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("abcdefgh");
+        state.buffer = LineBuffer::from("abcdefgh");
         let frame = r.render(&state);
         assert_eq!(frame.rows[0], "abcde");
     }
@@ -353,7 +353,7 @@ mod tests {
     fn test_cursor_position() {
         let r = Renderer::new(80, 24, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         state.selection = Selection::cursor(Position::new(1, 3));
         let (col, row) = r.cursor_position(&state);
         assert_eq!(col, 3);
@@ -374,7 +374,7 @@ mod tests {
     fn test_render_japanese_truncated() {
         let r = Renderer::new(5, 2, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("日本語");
+        state.buffer = LineBuffer::from("日本語");
         let frame = r.render(&state);
         // 日本 = 4 width, 日 = 2 width, so at width 5 we can only fit 日+本 (4) but not 日+本+語 (6).
         // So it should be "日本" (width 4) since 5 >= 4 but 5 < 6.
@@ -404,7 +404,7 @@ mod tests {
     fn test_scroll_offset_renders_correct_lines() {
         let mut r = Renderer::new(10, 3, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.buffer = LineBuffer::from("line0\nline1\nline2\nline3\nline4");
         r.scroll_offset = 2;
         let frame = r.render(&state);
         assert_eq!(frame.rows[0], "line2");
@@ -415,7 +415,7 @@ mod tests {
     fn test_ensure_cursor_visible_scrolls_down() {
         let mut r = Renderer::new(10, 3, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.buffer = LineBuffer::from("line0\nline1\nline2\nline3\nline4");
         state.selection = Selection::cursor(Position::new(3, 0));
         r.ensure_cursor_visible(&state);
         assert_eq!(r.scroll_offset, 2);
@@ -425,7 +425,7 @@ mod tests {
     fn test_ensure_cursor_visible_scrolls_up() {
         let mut r = Renderer::new(10, 3, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.buffer = LineBuffer::from("line0\nline1\nline2\nline3\nline4");
         r.scroll_offset = 3;
         state.selection = Selection::cursor(Position::new(1, 0));
         r.ensure_cursor_visible(&state);
@@ -436,7 +436,7 @@ mod tests {
     fn test_cursor_position_with_scroll() {
         let mut r = Renderer::new(10, 5, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.buffer = LineBuffer::from("line0\nline1\nline2\nline3\nline4");
         r.scroll_offset = 2;
         state.selection = Selection::cursor(Position::new(3, 2));
         let (col, row) = r.cursor_position(&state);
@@ -448,7 +448,7 @@ mod tests {
     fn test_cursor_position_japanese() {
         let r = Renderer::new(80, 24, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("日本語");
+        state.buffer = LineBuffer::from("日本語");
         // Cursor after "日" (1 char)
         state.selection = Selection::cursor(Position::new(0, 1));
         let (col, row) = r.cursor_position(&state);
@@ -466,7 +466,7 @@ mod tests {
     fn test_cursor_position_with_tab() {
         let r = Renderer::new(80, 24, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("a\tb\tc");
+        state.buffer = LineBuffer::from("a\tb\tc");
         // Cursor after "a\t" (2 chars)
         state.selection = Selection::cursor(Position::new(0, 2));
         let (col, row) = r.cursor_position(&state);
@@ -484,7 +484,7 @@ mod tests {
     fn test_render_empty_selection_no_highlight() {
         let r = Renderer::new(80, 2, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::cursor(Position::new(0, 6));
         let frame = r.render(&state);
         assert_eq!(frame.rows[0], "hello world");
@@ -494,7 +494,7 @@ mod tests {
     fn test_render_single_line_selection_highlighted() {
         let r = Renderer::new(80, 2, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
         let frame = r.render(&state);
         assert!(frame.rows[0].contains("\x1b[7mworld\x1b[0m"));
@@ -504,7 +504,7 @@ mod tests {
     fn test_render_multi_line_selection_highlighted() {
         let r = Renderer::new(80, 3, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld\n!");
+        state.buffer = LineBuffer::from("hello\nworld\n!");
         state.selection = Selection::new(Position::new(0, 2), Position::new(1, 3));
         let frame = r.render(&state);
         assert!(frame.rows[0].contains("\x1b[7mllo\x1b[0m"));
@@ -515,7 +515,7 @@ mod tests {
     fn test_render_full_line_selection() {
         let r = Renderer::new(80, 3, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         state.selection = Selection::new(Position::new(0, 0), Position::new(1, 5));
         let frame = r.render(&state);
         assert!(frame.rows[0].starts_with("\x1b[7mhello\x1b[0m"));
@@ -526,7 +526,7 @@ mod tests {
     fn test_render_selection_truncated_with_ansi() {
         let r = Renderer::new(8, 2, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 0), Position::new(0, 11));
         let frame = r.render(&state);
         // Should truncate to 8 display columns while preserving ANSI codes
@@ -554,7 +554,7 @@ mod tests {
     fn test_render_backward_selection() {
         let r = Renderer::new(80, 2, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 11), Position::new(0, 6));
         let frame = r.render(&state);
         assert!(frame.rows[0].contains("\x1b[7mworld\x1b[0m"));
@@ -597,7 +597,7 @@ mod tests {
     fn test_render_with_line_numbers() {
         let r = Renderer::new(20, 3, 4, true, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         let frame = r.render(&state);
         assert!(frame.rows[0].starts_with("1 "));
         assert!(frame.rows[0].contains("hello"));
@@ -609,7 +609,7 @@ mod tests {
     fn test_render_without_line_numbers() {
         let r = Renderer::new(20, 2, 4, false, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         let frame = r.render(&state);
         assert!(!frame.rows[0].starts_with("1 "));
         assert_eq!(frame.rows[0], "hello");
@@ -619,7 +619,7 @@ mod tests {
     fn test_render_relative_line_numbers() {
         let r = Renderer::new(20, 4, 4, true, true);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("a\nb\nc");
+        state.buffer = LineBuffer::from("a\nb\nc");
         state.selection = Selection::cursor(Position::new(1, 0));
         let frame = r.render(&state);
         // Line 0 is 1 away from cursor, should show relative
@@ -634,7 +634,7 @@ mod tests {
     fn test_cursor_position_with_line_numbers() {
         let r = Renderer::new(20, 2, 4, true, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         state.selection = Selection::cursor(Position::new(0, 0));
         let (col, row) = r.cursor_position(&state);
         // Cursor at beginning of text, gutter is "1 " = 2 chars
@@ -646,7 +646,7 @@ mod tests {
     fn test_gutter_width_single_digit() {
         let r = Renderer::new(20, 2, 4, true, false);
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("a\nb\nc");
+        state.buffer = LineBuffer::from("a\nb\nc");
         assert_eq!(r.compute_gutter_width(&state), 2); // "3" + space
     }
 
@@ -655,7 +655,7 @@ mod tests {
         let r = Renderer::new(20, 2, 4, true, false);
         let mut state = EditorState::new();
         let lines: Vec<String> = (0..15).map(|i| format!("line{}", i)).collect();
-        state.buffer = LineBuffer::from_str(&lines.join("\n"));
+        state.buffer = LineBuffer::from(lines.join("\n").as_str());
         assert_eq!(r.compute_gutter_width(&state), 3); // "15" + space
     }
 

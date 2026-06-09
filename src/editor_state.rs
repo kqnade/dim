@@ -58,7 +58,7 @@ impl EditorState {
 
     pub fn open_file(&mut self, path: &std::path::Path) -> Result<(), FileError> {
         let text = read_file(path)?;
-        self.buffer = LineBuffer::from_str(&text);
+        self.buffer = LineBuffer::from(text.as_str());
         self.selection = Selection::cursor(Position::new(0, 0));
         self.file_path = Some(path.to_path_buf());
         self.dirty = false;
@@ -652,7 +652,7 @@ mod tests {
     fn test_save_file() {
         let path = temp_dir().join("dim_test_save.txt");
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("save me");
+        state.buffer = LineBuffer::from("save me");
         state.file_path = Some(path.clone());
         state.dirty = true;
         state.save_file().unwrap();
@@ -665,7 +665,7 @@ mod tests {
     #[test]
     fn test_save_file_no_path() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("no path");
+        state.buffer = LineBuffer::from("no path");
         let result = state.save_file();
         assert_eq!(result, Err(FileError::WriteFailed));
     }
@@ -674,7 +674,7 @@ mod tests {
     fn test_save_file_as() {
         let path = temp_dir().join("dim_test_save_as.txt");
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("new content");
+        state.buffer = LineBuffer::from("new content");
         state.dirty = true;
         state.save_file_as(&path).unwrap();
         let contents = fs::read_to_string(&path).unwrap();
@@ -698,7 +698,7 @@ mod tests {
     #[test]
     fn test_insert_replaces_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
         state.insert_at_cursor("dim");
         assert_eq!(state.buffer.to_string(), "hello dim");
@@ -709,7 +709,7 @@ mod tests {
     #[test]
     fn test_delete_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
         let deleted = state.delete_selection();
         assert_eq!(deleted, "world");
@@ -722,7 +722,7 @@ mod tests {
     #[test]
     fn test_delete_empty_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("abc");
+        state.buffer = LineBuffer::from("abc");
         state.selection = Selection::cursor(Position::new(0, 1));
         let deleted = state.delete_selection();
         assert_eq!(deleted, "");
@@ -733,7 +733,7 @@ mod tests {
     #[test]
     fn test_delete_char() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("abc");
+        state.buffer = LineBuffer::from("abc");
         state.selection = Selection::cursor(Position::new(0, 1));
         state.delete_char();
         assert_eq!(state.buffer.to_string(), "ac");
@@ -744,7 +744,7 @@ mod tests {
     #[test]
     fn test_delete_char_joins_lines() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("ab\ncd");
+        state.buffer = LineBuffer::from("ab\ncd");
         state.selection = Selection::cursor(Position::new(0, 2));
         state.delete_char();
         assert_eq!(state.buffer.to_string(), "abcd");
@@ -778,7 +778,7 @@ mod tests {
     #[test]
     fn test_undo_delete() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 5), Position::new(0, 11));
         state.delete_selection();
         assert_eq!(state.buffer.to_string(), "hello");
@@ -806,7 +806,7 @@ mod tests {
     #[test]
     fn test_move_cursor_left() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("ab\ncd");
+        state.buffer = LineBuffer::from("ab\ncd");
         state.selection = Selection::cursor(Position::new(1, 1));
         state.move_cursor_left();
         assert_eq!(state.selection.head, Position::new(1, 0));
@@ -827,7 +827,7 @@ mod tests {
     #[test]
     fn test_move_cursor_right() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("ab\ncd");
+        state.buffer = LineBuffer::from("ab\ncd");
         state.selection = Selection::cursor(Position::new(0, 1));
         state.move_cursor_right();
         assert_eq!(state.selection.head, Position::new(0, 2));
@@ -840,7 +840,7 @@ mod tests {
     #[test]
     fn test_move_cursor_right_at_end() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("a");
+        state.buffer = LineBuffer::from("a");
         state.selection = Selection::cursor(Position::new(0, 1));
         state.move_cursor_right();
         assert_eq!(state.selection.head, Position::new(0, 1));
@@ -849,7 +849,7 @@ mod tests {
     #[test]
     fn test_move_cursor_up() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         state.selection = Selection::cursor(Position::new(1, 3));
         state.move_cursor_up();
         assert_eq!(state.selection.head, Position::new(0, 3));
@@ -858,7 +858,7 @@ mod tests {
     #[test]
     fn test_move_cursor_up_clamps_col() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hi\nworld");
+        state.buffer = LineBuffer::from("hi\nworld");
         state.selection = Selection::cursor(Position::new(1, 5));
         state.move_cursor_up();
         assert_eq!(state.selection.head, Position::new(0, 2));
@@ -875,7 +875,7 @@ mod tests {
     #[test]
     fn test_move_cursor_down() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         state.selection = Selection::cursor(Position::new(0, 3));
         state.move_cursor_down();
         assert_eq!(state.selection.head, Position::new(1, 3));
@@ -884,7 +884,7 @@ mod tests {
     #[test]
     fn test_move_cursor_down_clamps_col() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("world\nhi");
+        state.buffer = LineBuffer::from("world\nhi");
         state.selection = Selection::cursor(Position::new(0, 5));
         state.move_cursor_down();
         assert_eq!(state.selection.head, Position::new(1, 2));
@@ -893,7 +893,7 @@ mod tests {
     #[test]
     fn test_move_cursor_down_at_bottom() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         state.selection = Selection::cursor(Position::new(0, 0));
         state.move_cursor_down();
         assert_eq!(state.selection.head, Position::new(0, 0));
@@ -902,7 +902,7 @@ mod tests {
     #[test]
     fn test_clamp_position() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("ab\ncde");
+        state.buffer = LineBuffer::from("ab\ncde");
         assert_eq!(state.clamp_position(Position::new(0, 100)), Position::new(0, 2));
         assert_eq!(state.clamp_position(Position::new(100, 0)), Position::new(1, 0));
         assert_eq!(state.clamp_position(Position::new(1, 100)), Position::new(1, 3));
@@ -926,7 +926,7 @@ mod tests {
     #[test]
     fn test_yank_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
         let yanked = state.yank_selection();
         assert_eq!(yanked, "world");
@@ -938,7 +938,7 @@ mod tests {
     #[test]
     fn test_delete_sets_yank_buffer() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 6), Position::new(0, 11));
         state.delete_selection();
         assert_eq!(state.yank_buffer, "world");
@@ -947,7 +947,7 @@ mod tests {
     #[test]
     fn test_search_forward() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.buffer = LineBuffer::from("hello world\nhello dim");
         state.selection = Selection::cursor(Position::new(0, 0));
         let found = state.search_forward("hello");
         assert!(found);
@@ -957,7 +957,7 @@ mod tests {
     #[test]
     fn test_search_forward_next_line() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.buffer = LineBuffer::from("hello world\nhello dim");
         state.selection = Selection::cursor(Position::new(0, 2));
         let found = state.search_forward("hello");
         assert!(found);
@@ -967,7 +967,7 @@ mod tests {
     #[test]
     fn test_search_forward_not_found() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::cursor(Position::new(0, 0));
         let found = state.search_forward("xyz");
         assert!(!found);
@@ -976,7 +976,7 @@ mod tests {
     #[test]
     fn test_search_backward() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.buffer = LineBuffer::from("hello world\nhello dim");
         state.selection = Selection::cursor(Position::new(1, 5));
         let found = state.search_backward("hello");
         assert!(found);
@@ -986,7 +986,7 @@ mod tests {
     #[test]
     fn test_search_backward_prev_line() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world\nhello dim");
+        state.buffer = LineBuffer::from("hello world\nhello dim");
         state.selection = Selection::cursor(Position::new(1, 0));
         let found = state.search_backward("hello");
         assert!(found);
@@ -996,7 +996,7 @@ mod tests {
     #[test]
     fn test_visual_mode() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::cursor(Position::new(0, 6));
         state.visual_mode();
         assert_eq!(state.selection.anchor, Position::new(0, 6));
@@ -1006,7 +1006,7 @@ mod tests {
     #[test]
     fn test_select_line() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line1\nline2\nline3");
+        state.buffer = LineBuffer::from("line1\nline2\nline3");
         state.selection = Selection::cursor(Position::new(1, 3));
         state.select_line();
         assert_eq!(state.selection.anchor, Position::new(1, 0));
@@ -1016,7 +1016,7 @@ mod tests {
     #[test]
     fn test_extend_selection_right() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         state.selection = Selection::new(Position::new(0, 1), Position::new(0, 1));
         state.extend_selection_right();
         assert_eq!(state.selection.anchor, Position::new(0, 1));
@@ -1026,7 +1026,7 @@ mod tests {
     #[test]
     fn test_extend_selection_down() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         state.selection = Selection::new(Position::new(0, 2), Position::new(0, 2));
         state.extend_selection_down();
         assert_eq!(state.selection.anchor, Position::new(0, 2));
@@ -1036,7 +1036,7 @@ mod tests {
     #[test]
     fn test_collapse_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
         state.collapse_selection();
         assert!(state.selection.is_empty());
@@ -1046,7 +1046,7 @@ mod tests {
     #[test]
     fn test_move_word_forward() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::cursor(Position::new(0, 0));
         state.move_word_forward();
         assert_eq!(state.selection.head, Position::new(0, 6));
@@ -1055,7 +1055,7 @@ mod tests {
     #[test]
     fn test_move_word_backward() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::cursor(Position::new(0, 11));
         state.move_word_backward();
         assert_eq!(state.selection.head, Position::new(0, 5));
@@ -1064,7 +1064,7 @@ mod tests {
     #[test]
     fn test_open_line_below() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         state.selection = Selection::cursor(Position::new(0, 3));
         state.open_line_below();
         assert_eq!(state.buffer.to_string(), "hello\n\nworld");
@@ -1075,7 +1075,7 @@ mod tests {
     #[test]
     fn test_open_line_above() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         state.selection = Selection::cursor(Position::new(1, 3));
         state.open_line_above();
         assert_eq!(state.buffer.to_string(), "hello\n\nworld");
@@ -1086,7 +1086,7 @@ mod tests {
     #[test]
     fn test_page_up() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.buffer = LineBuffer::from("line0\nline1\nline2\nline3\nline4");
         state.selection = Selection::cursor(Position::new(3, 0));
         state.page_up(2);
         assert_eq!(state.selection.head, Position::new(1, 0));
@@ -1095,7 +1095,7 @@ mod tests {
     #[test]
     fn test_page_down() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line0\nline1\nline2\nline3\nline4");
+        state.buffer = LineBuffer::from("line0\nline1\nline2\nline3\nline4");
         state.selection = Selection::cursor(Position::new(1, 0));
         state.page_down(2);
         assert_eq!(state.selection.head, Position::new(3, 0));
@@ -1104,7 +1104,7 @@ mod tests {
     #[test]
     fn test_enter_append_mode_at_cursor() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         state.selection = Selection::cursor(Position::new(0, 2));
         state.enter_append_mode();
         assert_eq!(state.selection.head, Position::new(0, 3));
@@ -1114,7 +1114,7 @@ mod tests {
     #[test]
     fn test_enter_append_mode_at_end_of_line() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         state.selection = Selection::cursor(Position::new(0, 5));
         state.enter_append_mode();
         assert_eq!(state.selection.head, Position::new(0, 5));
@@ -1124,7 +1124,7 @@ mod tests {
     #[test]
     fn test_enter_append_mode_with_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello world");
+        state.buffer = LineBuffer::from("hello world");
         state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
         state.enter_append_mode();
         assert_eq!(state.selection.head, Position::new(0, 5));
@@ -1134,7 +1134,7 @@ mod tests {
     #[test]
     fn test_toggle_case_cursor() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         state.selection = Selection::cursor(Position::new(0, 0));
         state.toggle_case();
         assert_eq!(state.buffer.to_string(), "Hello");
@@ -1144,7 +1144,7 @@ mod tests {
     #[test]
     fn test_toggle_case_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("Hello World");
+        state.buffer = LineBuffer::from("Hello World");
         state.selection = Selection::new(Position::new(0, 0), Position::new(0, 5));
         state.toggle_case();
         assert_eq!(state.buffer.to_string(), "hELLO World");
@@ -1153,7 +1153,7 @@ mod tests {
     #[test]
     fn test_toggle_case_at_end_of_line() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         state.selection = Selection::cursor(Position::new(0, 5));
         state.toggle_case();
         assert_eq!(state.buffer.to_string(), "hello");
@@ -1163,7 +1163,7 @@ mod tests {
     #[test]
     fn test_indent_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line1\nline2\nline3");
+        state.buffer = LineBuffer::from("line1\nline2\nline3");
         state.selection = Selection::new(Position::new(0, 2), Position::new(1, 2));
         state.indent_selection();
         assert_eq!(state.buffer.to_string(), "\tline1\n\tline2\nline3");
@@ -1174,7 +1174,7 @@ mod tests {
     #[test]
     fn test_indent_empty_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello\nworld");
+        state.buffer = LineBuffer::from("hello\nworld");
         state.selection = Selection::cursor(Position::new(1, 2));
         state.indent_selection();
         assert_eq!(state.buffer.to_string(), "hello\n\tworld");
@@ -1183,7 +1183,7 @@ mod tests {
     #[test]
     fn test_unindent_selection() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("\tline1\n\tline2\nline3");
+        state.buffer = LineBuffer::from("\tline1\n\tline2\nline3");
         state.selection = Selection::new(Position::new(0, 2), Position::new(1, 2));
         state.unindent_selection();
         assert_eq!(state.buffer.to_string(), "line1\nline2\nline3");
@@ -1194,7 +1194,7 @@ mod tests {
     #[test]
     fn test_unindent_no_indent() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("line1\nline2");
+        state.buffer = LineBuffer::from("line1\nline2");
         state.selection = Selection::new(Position::new(0, 0), Position::new(1, 0));
         state.unindent_selection();
         assert_eq!(state.buffer.to_string(), "line1\nline2");
@@ -1203,7 +1203,7 @@ mod tests {
     #[test]
     fn test_jump_matching_pair_forward() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("(hello)");
+        state.buffer = LineBuffer::from("(hello)");
         state.selection = Selection::cursor(Position::new(0, 0));
         state.jump_matching_pair();
         assert_eq!(state.selection.head, Position::new(0, 6));
@@ -1212,7 +1212,7 @@ mod tests {
     #[test]
     fn test_jump_matching_pair_backward() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("(hello)");
+        state.buffer = LineBuffer::from("(hello)");
         state.selection = Selection::cursor(Position::new(0, 6));
         state.jump_matching_pair();
         assert_eq!(state.selection.head, Position::new(0, 0));
@@ -1221,7 +1221,7 @@ mod tests {
     #[test]
     fn test_jump_matching_pair_nested() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("(a [b] c)");
+        state.buffer = LineBuffer::from("(a [b] c)");
         state.selection = Selection::cursor(Position::new(0, 0));
         state.jump_matching_pair();
         assert_eq!(state.selection.head, Position::new(0, 8));
@@ -1230,7 +1230,7 @@ mod tests {
     #[test]
     fn test_jump_matching_pair_no_bracket() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("hello");
+        state.buffer = LineBuffer::from("hello");
         state.selection = Selection::cursor(Position::new(0, 2));
         state.jump_matching_pair();
         assert_eq!(state.selection.head, Position::new(0, 2));
@@ -1239,7 +1239,7 @@ mod tests {
     #[test]
     fn test_jump_matching_pair_braces() {
         let mut state = EditorState::new();
-        state.buffer = LineBuffer::from_str("{a {b} c}");
+        state.buffer = LineBuffer::from("{a {b} c}");
         state.selection = Selection::cursor(Position::new(0, 0));
         state.jump_matching_pair();
         assert_eq!(state.selection.head, Position::new(0, 8));

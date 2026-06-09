@@ -11,17 +11,25 @@ impl Default for LineBuffer {
     }
 }
 
+impl std::fmt::Display for LineBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.lines.join("\n"))
+    }
+}
+
+impl From<&str> for LineBuffer {
+    fn from(text: &str) -> Self {
+        let normalized = text.replace("\r\n", "\n");
+        let lines: Vec<String> = normalized.split('\n').map(String::from).collect();
+        Self { lines }
+    }
+}
+
 impl LineBuffer {
     pub fn new() -> Self {
         Self {
             lines: vec![String::new()],
         }
-    }
-
-    pub fn from_str(text: &str) -> Self {
-        let normalized = text.replace("\r\n", "\n");
-        let lines: Vec<String> = normalized.split('\n').map(String::from).collect();
-        Self { lines }
     }
 
     pub fn insert(&mut self, pos: Position, text: &str) -> Position {
@@ -107,10 +115,6 @@ impl LineBuffer {
 
     pub fn line_count(&self) -> usize {
         self.lines.len()
-    }
-
-    pub fn to_string(&self) -> String {
-        self.lines.join("\n")
     }
 
     pub fn line_len(&self, line: usize) -> Option<usize> {
@@ -207,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_from_str_empty() {
-        let buf = LineBuffer::from_str("");
+        let buf = LineBuffer::from("");
         assert_eq!(buf.line_count(), 1);
         assert_eq!(buf.line(0), Some(""));
         assert_eq!(buf.to_string(), "");
@@ -215,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_from_str_single_line() {
-        let buf = LineBuffer::from_str("hello");
+        let buf = LineBuffer::from("hello");
         assert_eq!(buf.line_count(), 1);
         assert_eq!(buf.line(0), Some("hello"));
         assert_eq!(buf.to_string(), "hello");
@@ -223,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_from_str_multiple_lines_lf() {
-        let buf = LineBuffer::from_str("hello\nworld");
+        let buf = LineBuffer::from("hello\nworld");
         assert_eq!(buf.line_count(), 2);
         assert_eq!(buf.line(0), Some("hello"));
         assert_eq!(buf.line(1), Some("world"));
@@ -232,7 +236,7 @@ mod tests {
 
     #[test]
     fn test_from_str_crlf_normalized() {
-        let buf = LineBuffer::from_str("hello\r\nworld");
+        let buf = LineBuffer::from("hello\r\nworld");
         assert_eq!(buf.line_count(), 2);
         assert_eq!(buf.line(0), Some("hello"));
         assert_eq!(buf.line(1), Some("world"));
@@ -241,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_from_str_trailing_newline() {
-        let buf = LineBuffer::from_str("a\n");
+        let buf = LineBuffer::from("a\n");
         assert_eq!(buf.line_count(), 2);
         assert_eq!(buf.line(0), Some("a"));
         assert_eq!(buf.line(1), Some(""));
@@ -250,25 +254,25 @@ mod tests {
 
     #[test]
     fn test_line_out_of_range() {
-        let buf = LineBuffer::from_str("a");
+        let buf = LineBuffer::from("a");
         assert_eq!(buf.line(1), None);
     }
 
     #[test]
     fn test_line_len() {
-        let buf = LineBuffer::from_str("hello");
+        let buf = LineBuffer::from("hello");
         assert_eq!(buf.line_len(0), Some(5));
     }
 
     #[test]
     fn test_line_len_japanese() {
-        let buf = LineBuffer::from_str("日本語");
+        let buf = LineBuffer::from("日本語");
         assert_eq!(buf.line_len(0), Some(3));
     }
 
     #[test]
     fn test_line_len_out_of_range() {
-        let buf = LineBuffer::from_str("a");
+        let buf = LineBuffer::from("a");
         assert_eq!(buf.line_len(1), None);
     }
 
@@ -283,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_insert_at_end() {
-        let mut buf = LineBuffer::from_str("hello");
+        let mut buf = LineBuffer::from("hello");
         let end = buf.insert(Position::new(0, 5), " world");
         assert_eq!(end, Position::new(0, 11));
         assert_eq!(buf.to_string(), "hello world");
@@ -291,7 +295,7 @@ mod tests {
 
     #[test]
     fn test_insert_mid_line() {
-        let mut buf = LineBuffer::from_str("abcd");
+        let mut buf = LineBuffer::from("abcd");
         let end = buf.insert(Position::new(0, 2), "XY");
         assert_eq!(end, Position::new(0, 4));
         assert_eq!(buf.to_string(), "abXYcd");
@@ -299,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_insert_newline_splits_line() {
-        let mut buf = LineBuffer::from_str("ab");
+        let mut buf = LineBuffer::from("ab");
         let end = buf.insert(Position::new(0, 1), "\n");
         assert_eq!(end, Position::new(1, 0));
         assert_eq!(buf.line_count(), 2);
@@ -309,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_insert_multiline_text() {
-        let mut buf = LineBuffer::from_str("start");
+        let mut buf = LineBuffer::from("start");
         let end = buf.insert(Position::new(0, 2), "x\ny");
         assert_eq!(end, Position::new(1, 1));
         assert_eq!(buf.line_count(), 2);
@@ -319,7 +323,7 @@ mod tests {
 
     #[test]
     fn test_insert_crlf_normalized() {
-        let mut buf = LineBuffer::from_str("ab");
+        let mut buf = LineBuffer::from("ab");
         let end = buf.insert(Position::new(0, 1), "\r\n");
         assert_eq!(end, Position::new(1, 0));
         assert_eq!(buf.line_count(), 2);
@@ -338,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_delete_range_single_line() {
-        let mut buf = LineBuffer::from_str("hello world");
+        let mut buf = LineBuffer::from("hello world");
         let deleted = buf.delete_range(Position::new(0, 5), Position::new(0, 11));
         assert_eq!(deleted, " world");
         assert_eq!(buf.to_string(), "hello");
@@ -346,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_delete_range_mid_line() {
-        let mut buf = LineBuffer::from_str("abcdef");
+        let mut buf = LineBuffer::from("abcdef");
         let deleted = buf.delete_range(Position::new(0, 2), Position::new(0, 4));
         assert_eq!(deleted, "cd");
         assert_eq!(buf.to_string(), "abef");
@@ -354,7 +358,7 @@ mod tests {
 
     #[test]
     fn test_delete_range_multiline() {
-        let mut buf = LineBuffer::from_str("a\nb\nc");
+        let mut buf = LineBuffer::from("a\nb\nc");
         let deleted = buf.delete_range(Position::new(0, 1), Position::new(2, 0));
         assert_eq!(deleted, "\nb\n");
         assert_eq!(buf.line_count(), 1);
@@ -364,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_delete_range_across_lines() {
-        let mut buf = LineBuffer::from_str("hello\nworld");
+        let mut buf = LineBuffer::from("hello\nworld");
         let deleted = buf.delete_range(Position::new(0, 3), Position::new(1, 2));
         assert_eq!(deleted, "lo\nwo");
         assert_eq!(buf.to_string(), "helrld");
@@ -372,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_delete_range_empty() {
-        let mut buf = LineBuffer::from_str("abc");
+        let mut buf = LineBuffer::from("abc");
         let deleted = buf.delete_range(Position::new(0, 1), Position::new(0, 1));
         assert_eq!(deleted, "");
         assert_eq!(buf.to_string(), "abc");
@@ -380,21 +384,21 @@ mod tests {
 
     #[test]
     fn test_display_width_ascii() {
-        let buf = LineBuffer::from_str("abc");
+        let buf = LineBuffer::from("abc");
         assert_eq!(buf.display_width(Position::new(0, 0), 4), Some(0));
         assert_eq!(buf.display_width(Position::new(0, 2), 4), Some(2));
     }
 
     #[test]
     fn test_display_width_tab() {
-        let buf = LineBuffer::from_str("\ta");
+        let buf = LineBuffer::from("\ta");
         assert_eq!(buf.display_width(Position::new(0, 0), 4), Some(0));
         assert_eq!(buf.display_width(Position::new(0, 1), 4), Some(4));
     }
 
     #[test]
     fn test_display_width_japanese() {
-        let buf = LineBuffer::from_str("日本語");
+        let buf = LineBuffer::from("日本語");
         assert_eq!(buf.display_width(Position::new(0, 0), 4), Some(0));
         assert_eq!(buf.display_width(Position::new(0, 1), 4), Some(2));
         assert_eq!(buf.display_width(Position::new(0, 2), 4), Some(4));
@@ -403,14 +407,14 @@ mod tests {
 
     #[test]
     fn test_display_width_out_of_range() {
-        let buf = LineBuffer::from_str("a");
+        let buf = LineBuffer::from("a");
         assert_eq!(buf.display_width(Position::new(0, 5), 4), None);
         assert_eq!(buf.display_width(Position::new(1, 0), 4), None);
     }
 
     #[test]
     fn test_insert_out_of_range() {
-        let mut buf = LineBuffer::from_str("hello");
+        let mut buf = LineBuffer::from("hello");
         let end = buf.insert(Position::new(100, 0), "world");
         assert_eq!(end, Position::new(100, 0));
         assert_eq!(buf.to_string(), "hello");
@@ -418,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_apply_transaction_insert() {
-        let mut buf = LineBuffer::from_str("abc");
+        let mut buf = LineBuffer::from("abc");
         let txn = Transaction::with_ops(vec![EditOp::Insert {
             pos: Position::new(0, 1),
             text: "XY".to_string(),
@@ -429,7 +433,7 @@ mod tests {
 
     #[test]
     fn test_apply_transaction_delete() {
-        let mut buf = LineBuffer::from_str("abcde");
+        let mut buf = LineBuffer::from("abcde");
         let txn = Transaction::with_ops(vec![EditOp::Delete {
             pos: Position::new(0, 1),
             text: "bcd".to_string(),
@@ -440,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_apply_transaction_multiline() {
-        let mut buf = LineBuffer::from_str("start");
+        let mut buf = LineBuffer::from("start");
         let txn = Transaction::with_ops(vec![EditOp::Insert {
             pos: Position::new(0, 2),
             text: "x\ny".to_string(),
@@ -451,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_apply_transaction_inverse_insert() {
-        let mut buf = LineBuffer::from_str("aXYbc");
+        let mut buf = LineBuffer::from("aXYbc");
         let txn = Transaction::with_ops(vec![EditOp::Insert {
             pos: Position::new(0, 1),
             text: "XY".to_string(),
@@ -462,7 +466,7 @@ mod tests {
 
     #[test]
     fn test_apply_transaction_inverse_delete() {
-        let mut buf = LineBuffer::from_str("ae");
+        let mut buf = LineBuffer::from("ae");
         let txn = Transaction::with_ops(vec![EditOp::Delete {
             pos: Position::new(0, 1),
             text: "bcd".to_string(),
@@ -473,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_apply_transaction_inverse_multiline() {
-        let mut buf = LineBuffer::from_str("stx\nyart");
+        let mut buf = LineBuffer::from("stx\nyart");
         let txn = Transaction::with_ops(vec![EditOp::Insert {
             pos: Position::new(0, 2),
             text: "x\ny".to_string(),
