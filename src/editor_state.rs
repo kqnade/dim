@@ -363,6 +363,11 @@ impl EditorState {
         self.selection = Selection::cursor(pos);
         self.dirty = true;
         self.mode = EditorMode::Insert;
+        let txn = Transaction::with_ops(vec![EditOp::Insert {
+            pos,
+            text: "\n".to_string(),
+        }]);
+        self.push_transaction(txn);
     }
 
     pub fn toggle_case(&mut self) {
@@ -529,6 +534,11 @@ impl EditorState {
         self.selection = Selection::cursor(pos);
         self.dirty = true;
         self.mode = EditorMode::Insert;
+        let txn = Transaction::with_ops(vec![EditOp::Insert {
+            pos,
+            text: "\n".to_string(),
+        }]);
+        self.push_transaction(txn);
     }
 
     pub fn search_forward(&mut self, query: &str) -> bool {
@@ -1092,6 +1102,17 @@ mod tests {
     }
 
     #[test]
+    fn test_open_line_below_undo() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\nworld");
+        state.selection = Selection::cursor(Position::new(0, 3));
+        state.open_line_below();
+        assert!(state.can_undo());
+        state.undo();
+        assert_eq!(state.buffer.to_string(), "hello\nworld");
+    }
+
+    #[test]
     fn test_open_line_above() {
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from("hello\nworld");
@@ -1100,6 +1121,17 @@ mod tests {
         assert_eq!(state.buffer.to_string(), "hello\n\nworld");
         assert_eq!(state.selection.head, Position::new(1, 0));
         assert_eq!(state.mode, EditorMode::Insert);
+    }
+
+    #[test]
+    fn test_open_line_above_undo() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\nworld");
+        state.selection = Selection::cursor(Position::new(1, 3));
+        state.open_line_above();
+        assert!(state.can_undo());
+        state.undo();
+        assert_eq!(state.buffer.to_string(), "hello\nworld");
     }
 
     #[test]
@@ -1118,6 +1150,24 @@ mod tests {
         state.selection = Selection::cursor(Position::new(1, 0));
         state.page_down(2);
         assert_eq!(state.selection.head, Position::new(3, 0));
+    }
+
+    #[test]
+    fn test_move_head_to() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\nworld");
+        state.move_head_to(Position::new(1, 3));
+        assert_eq!(state.selection.head, Position::new(1, 3));
+        assert!(state.selection.is_empty());
+    }
+
+    #[test]
+    fn test_move_head_to_clamps() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\nworld");
+        state.move_head_to(Position::new(100, 100));
+        assert_eq!(state.selection.head, Position::new(1, 5));
+        assert!(state.selection.is_empty());
     }
 
     #[test]
