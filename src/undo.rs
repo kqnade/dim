@@ -169,4 +169,37 @@ mod tests {
         let mut um = UndoManager::new();
         assert_eq!(um.redo(), None);
     }
+
+    #[test]
+    fn test_undo_manager_len_tracks_correctly() {
+        let mut um = UndoManager::new();
+        assert_eq!(um.undo_len(), 0);
+        assert_eq!(um.redo_len(), 0);
+
+        um.push(Transaction::with_ops(vec![EditOp::Insert {
+            pos: Position::new(0, 0),
+            text: "a".to_string(),
+        }]));
+        assert_eq!(um.undo_len(), 1);
+        assert_eq!(um.redo_len(), 0);
+
+        um.push(Transaction::with_ops(vec![EditOp::Insert {
+            pos: Position::new(0, 0),
+            text: "b".to_string(),
+        }]));
+        assert_eq!(um.undo_len(), 2);
+        assert_eq!(um.redo_len(), 0);
+
+        um.undo();
+        assert_eq!(um.undo_len(), 1);
+        assert_eq!(um.redo_len(), 1);
+
+        um.undo();
+        assert_eq!(um.undo_len(), 0);
+        assert_eq!(um.redo_len(), 2);
+
+        um.redo();
+        assert_eq!(um.undo_len(), 1);
+        assert_eq!(um.redo_len(), 1);
+    }
 }

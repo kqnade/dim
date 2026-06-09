@@ -587,4 +587,48 @@ mod tests {
         assert_eq!(skk.dict.lookup("にほんご"), Some(&vec!["日本語".to_string()]));
         std::fs::remove_file(&path).unwrap();
     }
+
+    #[test]
+    fn test_dictionary_save_to_file() {
+        let path = std::env::temp_dir().join("dim_test_dict_save.txt");
+        let mut dict = Dictionary::new();
+        dict.add("にほんご", &["日本語"]);
+        dict.add("てきすと", &["テキスト", "文章"]);
+        dict.save_to_file(&path).unwrap();
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert!(contents.contains("にほんご /日本語/"));
+        assert!(contents.contains("てきすと /テキスト/文章/"));
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn test_dictionary_merge() {
+        let mut dict1 = Dictionary::new();
+        dict1.add("a", &["A"]);
+        let mut dict2 = Dictionary::new();
+        dict2.add("b", &["B"]);
+        dict1.merge(&dict2);
+        assert_eq!(dict1.lookup("a"), Some(&vec!["A".to_string()]));
+        assert_eq!(dict1.lookup("b"), Some(&vec!["B".to_string()]));
+    }
+
+    #[test]
+    fn test_dictionary_merge_overwrites() {
+        let mut dict1 = Dictionary::new();
+        dict1.add("a", &["A1"]);
+        let mut dict2 = Dictionary::new();
+        dict2.add("a", &["A2"]);
+        dict1.merge(&dict2);
+        assert_eq!(dict1.lookup("a"), Some(&vec!["A2".to_string()]));
+    }
+
+    #[test]
+    fn test_skk_current_candidate() {
+        let mut skk = SkkEngine::new();
+        skk.reading = "てきすと".to_string();
+        skk.start_conversion();
+        assert_eq!(skk.current_candidate(), Some("テキスト"));
+        skk.next_candidate();
+        assert_eq!(skk.current_candidate(), Some("文章"));
+    }
 }

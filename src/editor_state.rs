@@ -628,6 +628,25 @@ mod tests {
     }
 
     #[test]
+    fn test_can_undo_and_can_redo() {
+        let mut state = EditorState::new();
+        assert!(!state.can_undo());
+        assert!(!state.can_redo());
+
+        state.insert_at_cursor("hello");
+        assert!(state.can_undo());
+        assert!(!state.can_redo());
+
+        state.undo();
+        assert!(!state.can_undo());
+        assert!(state.can_redo());
+
+        state.redo();
+        assert!(state.can_undo());
+        assert!(!state.can_redo());
+    }
+
+    #[test]
     fn test_open_file() {
         let path = temp_dir().join("dim_test_open.txt");
         fs::write(&path, "hello\nworld").unwrap();
