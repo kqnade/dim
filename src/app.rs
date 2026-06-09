@@ -722,6 +722,66 @@ mod tests {
     }
 
     #[test]
+    fn test_execute_move_up() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\nworld");
+        state.selection = Selection::cursor(Position::new(1, 3));
+        let action = execute_command(Command::MoveUp, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 3));
+    }
+
+    #[test]
+    fn test_execute_move_down() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\nworld");
+        state.selection = Selection::cursor(Position::new(0, 3));
+        let action = execute_command(Command::MoveDown, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(1, 3));
+    }
+
+    #[test]
+    fn test_execute_move_line_start() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello world");
+        state.selection = Selection::cursor(Position::new(0, 5));
+        let action = execute_command(Command::MoveLineStart, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_execute_move_line_end() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello world");
+        state.selection = Selection::cursor(Position::new(0, 0));
+        let action = execute_command(Command::MoveLineEnd, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 11));
+    }
+
+    #[test]
+    fn test_execute_move_file_start() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\nworld");
+        state.selection = Selection::cursor(Position::new(1, 3));
+        let action = execute_command(Command::MoveFileStart, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(0, 0));
+    }
+
+    #[test]
+    fn test_execute_move_file_end() {
+        let mut state = EditorState::new();
+        state.buffer = LineBuffer::from("hello\nworld");
+        state.selection = Selection::cursor(Position::new(0, 3));
+        let action = execute_command(Command::MoveFileEnd, &mut state);
+        assert_eq!(action, AppAction::Continue);
+        assert_eq!(state.selection.head, Position::new(1, 5));
+    }
+
+    #[test]
     fn test_execute_open_line_below() {
         let mut state = EditorState::new();
         state.buffer = LineBuffer::from("hello\nworld");
