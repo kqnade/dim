@@ -1,6 +1,8 @@
 # Dim
 
 A personal terminal-based text editor.
+でも挫折したので開発しないです
+https://github.com/kqnade/ecro でやってます.
 
 - Vim-like modal editing
 - Helix-like selection-first editing model
